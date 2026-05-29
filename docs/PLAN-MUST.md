@@ -165,10 +165,10 @@ Zustand 스토어. **액션은 geometry만 호출, 렌더 기술 미import.**
 - `share/`: 편집 링크 진입(작성자 수정), 열람 링크 진입(비로그인 열람) + **열람자의 복제 후 수정** 흐름. 저장 후 두 URL 노출.
 
 **완료 기준 (PRD-M5 수용 기준)**:
-- [ ] 서버 저장 동작.
-- [ ] 편집 링크로 작성자가 수정 가능.
-- [ ] 열람 링크로 비로그인 열람·복제 후 수정 가능.
-- [ ] 편집/열람 링크가 서로 다른 고유 URL.
+- [x] 서버 저장 동작. *(`POST /designs` → `{design, shareLink}`. `designs/service.test.ts` + curl 왕복 + 브라우저 "저장하고 링크 만들기"로 확인)*
+- [x] 편집 링크로 작성자가 수정 가능. *(`PUT /designs/by-edit/:editToken`, id 유지. service test "작성자 수정" + curl로 creamColor 갱신 반영 확인)*
+- [x] 열람 링크로 비로그인 열람·복제 후 수정 가능. *(`GET /by-view`·`POST /by-view/:t/clone` → 새 id·새 토큰. service test "복제 독립" + curl: 복제본 수정이 원본 불변)*
+- [x] 편집/열람 링크가 서로 다른 고유 URL. *(`issueShareLink`가 crypto 난수 2개 발급. service test "고유 4토큰" + 브라우저에서 `/edit/…`·`/view/…` 상이 확인)*
 
 ---
 
@@ -191,7 +191,7 @@ Phase 0 부트스트랩
 - [x] **동기화 회귀 테스트**: 2D에서 요소 추가/이동/색변경 → 3D 전환 시 반영(스냅샷/시각). *(Phase 4: 크림색 변경+일러스트 추가가 3D에 반영됨을 런타임 시각 확인 + `viewer3d/texture/bakeNet.test.ts`가 디자인→굽기-입력 반영 검증)*
 - [ ] **좌표 단일화 테스트**: 모든 변환이 `geometry` 경유(인라인 계산 grep로 점검).
 - [x] **레이어 경계 린트**: `tools`/`store`/`texture`에서 three/r3f/canvas import 0건. *(Phase 0에서 룰 구축·검증 완료)*
-- [ ] **공유 왕복 테스트**: 저장 → editToken 수정 → viewToken 열람·복제 → 복제본 독립 수정.
+- [x] **공유 왕복 테스트**: 저장 → editToken 수정 → viewToken 열람·복제 → 복제본 독립 수정. *(Phase 5: `apps/api/src/designs/service.test.ts` 7케이스 + curl 왕복으로 전 구간 검증)*
 
 ## 8. Must 범위 밖(혼동 방지)
 

@@ -1,17 +1,21 @@
-// App — 앱 셸. 상단 브랜드바(+전개도↔3D 전환) + 좌측(케이크·요소) + 중앙 뷰
-// + 우측 속성 패널. 공유(Phase 5)는 이후 채운다.
+// App — 앱 셸. 상단 브랜드바(+전개도↔3D 전환) + 좌측(공유·케이크·요소) + 중앙 뷰
+// + 우측 속성 패널. 열람 모드(PRD-M5)에선 편집 패널을 숨기고 공유 패널만 둔다.
 import { useState } from 'react';
 import { palette, fontStack, radius, shadow, Button } from './ui';
 import { CakeControls } from './cake';
 import { NetEditor } from './editor2d/canvas';
 import { LibraryPanel, PropertiesPanel } from './editor2d/panels';
 import { CakeViewer3D } from './viewer3d';
+import { SharePanel, useShareSession } from './share';
 
 type ViewMode = 'net' | '3d';
 
 export function App() {
+  const session = useShareSession();
+  // 열람 링크 진입이면 편집 UI를 숨기고 3D 시안을 먼저 보여준다.
+  const readOnly = session.mode === 'view';
   // 뷰 전환은 표현 상태(디자인 문서 아님) — App-local로 둔다.
-  const [view, setView] = useState<ViewMode>('net');
+  const [view, setView] = useState<ViewMode>(readOnly ? '3d' : 'net');
 
   return (
     <div
@@ -84,8 +88,13 @@ export function App() {
             overflowY: 'auto',
           }}
         >
-          <CakeControls />
-          <LibraryPanel />
+          <SharePanel session={session} />
+          {!readOnly && (
+            <>
+              <CakeControls />
+              <LibraryPanel />
+            </>
+          )}
         </div>
         <section
           style={{
@@ -100,9 +109,11 @@ export function App() {
         >
           {view === 'net' ? <NetEditor /> : <CakeViewer3D />}
         </section>
-        <div style={{ width: 228, flexShrink: 0, overflowY: 'auto' }}>
-          <PropertiesPanel />
-        </div>
+        {!readOnly && (
+          <div style={{ width: 228, flexShrink: 0, overflowY: 'auto' }}>
+            <PropertiesPanel />
+          </div>
+        )}
       </main>
     </div>
   );
