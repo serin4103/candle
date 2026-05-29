@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 1100" width="1100" height="1100">
+  <defs>
+    <filter id="rough" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.014 0.018" numOctaves="2" seed="4" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+    </filter>
+  </defs>
+
+  <g filter="url(#rough)" fill="none" stroke="#111111" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
+
+
+    <path d="M 470 325&#xA;             C 475 240, 520 165, 568 165&#xA;             C 618 165, 702 188, 668 272&#xA;             C 648 322, 598 314, 605 262&#xA;             C 609 230, 574 234, 568 270&#xA;             L 562 326"></path>
+
+
+    <path d="M 432 285&#xA;             C 360 248, 300 240, 250 270&#xA;             C 175 312, 140 400, 152 470&#xA;             C 160 540, 170 592, 196 624&#xA;             C 236 662, 302 650, 352 600&#xA;             C 392 558, 412 520, 416 482"></path>
+
+
+    <path d="M 700 282&#xA;             C 772 245, 832 238, 884 268&#xA;             C 958 312, 992 400, 980 470&#xA;             C 972 540, 962 592, 936 624&#xA;             C 896 662, 830 650, 780 598&#xA;             C 740 556, 720 518, 718 480"></path>
+
+
+    <path d="M 315 686&#xA;             C 320 762, 380 852, 470 888&#xA;             C 522 908, 602 908, 656 886&#xA;             C 762 848, 826 762, 840 688"></path>
+  </g>
+
+
+  <g filter="url(#rough)" fill="#111111">
+    <ellipse cx="495" cy="600" rx="28" ry="36"></ellipse>
+    <ellipse cx="656" cy="595" rx="28" ry="36"></ellipse>
+    <path d="M 528 702&#xA;             C 550 696, 588 696, 608 702&#xA;             C 615 705, 616 712, 612 720&#xA;             C 600 748, 584 770, 574 782&#xA;             C 569 787, 561 787, 556 782&#xA;             C 546 770, 530 748, 518 720&#xA;             C 514 712, 515 705, 522 702&#xA;             C 524 701, 526 701, 528 702 Z" stroke="#111111" stroke-width="6" stroke-linejoin="round"></path>
+  </g>
+</svg>

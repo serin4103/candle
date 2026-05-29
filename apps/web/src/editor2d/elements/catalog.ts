@@ -3,6 +3,7 @@
 // 정의한다. 렌더 기술·상태 의존 없음 — tools(히트테스트/핸들)와 View가 함께 쓴다.
 import type { Element } from '@candle/shared';
 import catFaceUrl from './assets/cat-face.svg';
+import dogFaceUrl from './assets/dog-face.svg';
 
 /** 일러스트 자산 — assetId로 참조하는 SVG 자산(Vite URL import). */
 export interface IllustrationAsset {
@@ -30,6 +31,7 @@ export interface LetteringFont {
  *  `assets/`에 파일을 넣고 import 후 이 배열에 한 줄 추가한다. */
 export const illustrations: IllustrationAsset[] = [
   { id: 'cat-face', label: '고양이', src: catFaceUrl, aspect: 1130 / 1090 },
+  { id: 'dog-face', label: '강아지', src: dogFaceUrl, aspect: 1100 / 1100 },
 ];
 
 /** 파이핑 변형(PRD-M3 카테고리 3). */
