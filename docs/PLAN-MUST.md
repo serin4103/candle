@@ -76,8 +76,8 @@ Zustand 스토어. **액션은 geometry만 호출, 렌더 기술 미import.**
 - 액션(Must 범위): `setShape`, `setBaseColor`/`setCreamColor`, `addElement`, `moveElement`, `scaleElement`, `rotateElement`, `deleteElement`, `reorderElement`(zIndex), `updateLettering`(text/font/color), `loadDesign`, `getDesignSnapshot`
 
 **완료 기준**:
-- [ ] 스토어 액션 단위 테스트 통과.
-- [ ] geometry 변환 함수 테스트 통과(하트 포함 또는 리스크 보고).
+- [x] 스토어 액션 단위 테스트 통과.
+- [x] geometry 변환 함수 테스트 통과(하트 포함 또는 리스크 보고).
 
 ---
 
@@ -90,8 +90,8 @@ Zustand 스토어. **액션은 geometry만 호출, 렌더 기술 미import.**
 - 선택 결과가 전개도 뷰(및 이후 3D)에 반영되도록 store 구독.
 
 **완료 기준 (PRD-M1, M2 수용 기준)**:
-- [ ] 3종 모양 선택 가능, 선택 시 전개도 뷰가 해당 모양에 맞게 구성된다.
-- [ ] 팔레트/피커로 고른 색이 전개도에 즉시 반영된다(3D 반영은 Phase 4에서 검증).
+- [x] 3종 모양 선택 가능, 선택 시 전개도 뷰가 해당 모양에 맞게 구성된다.
+- [x] 팔레트/피커로 고른 색이 전개도에 즉시 반영된다(3D 반영은 Phase 4에서 검증).
 
 ---
 
@@ -117,9 +117,9 @@ Zustand 스토어. **액션은 geometry만 호출, 렌더 기술 미import.**
 - 입력 위임만, 로직 없음.
 
 **완료 기준 (PRD-M3 수용 기준)**:
-- [ ] 3개 카테고리 제공.
-- [ ] 이동/확대축소/회전/삭제/레이어 순서 변경 동작.
-- [ ] 레터링 텍스트·폰트·색상 변경 동작.
+- [x] 3개 카테고리 제공. *(일러스트/레터링/파이핑 — `editor2d/elements/catalog`, 라이브러리 패널 노출·런타임 확인)*
+- [x] 이동/확대축소/회전/삭제/레이어 순서 변경 동작. *(tools 단위 테스트 + 브라우저 end-to-end: 드래그 이동·코너 스케일·회전 핸들·삭제·맨앞/맨뒤)*
+- [x] 레터링 텍스트·폰트·색상 변경 동작. *(속성 패널 → `updateLettering`, 런타임에서 SVG 즉시 반영 확인)*
 
 ---
 
@@ -139,9 +139,9 @@ Zustand 스토어. **액션은 geometry만 호출, 렌더 기술 미import.**
 - 전개도↔3D 뷰 **전환** UI: 전환 시 최신 store 기준으로 텍스처 재생성.
 
 **완료 기준 (PRD-M4 수용 기준)**:
-- [ ] 전개도↔3D 전환 가능.
-- [ ] 3D 전환 시 최신 디자인(요소·색상)이 반영된다.
-- [ ] 360° 회전·확대축소 동작.
+- [x] 전개도↔3D 전환 가능. *(App 헤더 전개도/3D 토글 → 중앙 뷰 스왑, 런타임 확인)*
+- [x] 3D 전환 시 최신 디자인(요소·색상)이 반영된다. *(`texture/buildNetSvg`가 store를 직렬화→캔버스로 굽기→CanvasTexture. 크림색·일러스트가 3D에 반영됨을 런타임 시각 확인 + `bakeNet.test.ts`)*
+- [x] 360° 회전·확대축소 동작. *(drei OrbitControls; 드래그 궤도·휠 줌으로 카메라 이동 런타임 확인)*
 
 ---
 
@@ -165,10 +165,10 @@ Zustand 스토어. **액션은 geometry만 호출, 렌더 기술 미import.**
 - `share/`: 편집 링크 진입(작성자 수정), 열람 링크 진입(비로그인 열람) + **열람자의 복제 후 수정** 흐름. 저장 후 두 URL 노출.
 
 **완료 기준 (PRD-M5 수용 기준)**:
-- [ ] 서버 저장 동작.
-- [ ] 편집 링크로 작성자가 수정 가능.
-- [ ] 열람 링크로 비로그인 열람·복제 후 수정 가능.
-- [ ] 편집/열람 링크가 서로 다른 고유 URL.
+- [x] 서버 저장 동작. *(`POST /designs` → `{design, shareLink}`. `designs/service.test.ts` + curl 왕복 + 브라우저 "저장하고 링크 만들기"로 확인)*
+- [x] 편집 링크로 작성자가 수정 가능. *(`PUT /designs/by-edit/:editToken`, id 유지. service test "작성자 수정" + curl로 creamColor 갱신 반영 확인)*
+- [x] 열람 링크로 비로그인 열람·복제 후 수정 가능. *(`GET /by-view`·`POST /by-view/:t/clone` → 새 id·새 토큰. service test "복제 독립" + curl: 복제본 수정이 원본 불변)*
+- [x] 편집/열람 링크가 서로 다른 고유 URL. *(`issueShareLink`가 crypto 난수 2개 발급. service test "고유 4토큰" + 브라우저에서 `/edit/…`·`/view/…` 상이 확인)*
 
 ---
 
@@ -188,10 +188,10 @@ Phase 0 부트스트랩
 
 ## 7. 교차 검증(완료 정의)
 
-- [ ] **동기화 회귀 테스트**: 2D에서 요소 추가/이동/색변경 → 3D 전환 시 반영(스냅샷/시각).
+- [x] **동기화 회귀 테스트**: 2D에서 요소 추가/이동/색변경 → 3D 전환 시 반영(스냅샷/시각). *(Phase 4: 크림색 변경+일러스트 추가가 3D에 반영됨을 런타임 시각 확인 + `viewer3d/texture/bakeNet.test.ts`가 디자인→굽기-입력 반영 검증)*
 - [ ] **좌표 단일화 테스트**: 모든 변환이 `geometry` 경유(인라인 계산 grep로 점검).
 - [x] **레이어 경계 린트**: `tools`/`store`/`texture`에서 three/r3f/canvas import 0건. *(Phase 0에서 룰 구축·검증 완료)*
-- [ ] **공유 왕복 테스트**: 저장 → editToken 수정 → viewToken 열람·복제 → 복제본 독립 수정.
+- [x] **공유 왕복 테스트**: 저장 → editToken 수정 → viewToken 열람·복제 → 복제본 독립 수정. *(Phase 5: `apps/api/src/designs/service.test.ts` 7케이스 + curl 왕복으로 전 구간 검증)*
 
 ## 8. Must 범위 밖(혼동 방지)
 
