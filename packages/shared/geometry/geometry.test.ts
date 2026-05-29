@@ -11,6 +11,7 @@ import {
   netToScreen,
   applyInverseRotation,
   applyForwardRotation,
+  runFromPoints,
   recomputeForSpec,
   SIZE_BASE_DIAMETER_CM,
   SIZE_STEP_CM,
@@ -195,6 +196,22 @@ describe('applyForwardRotation', () => {
     const back = applyInverseRotation(t, world);
     expect(back.x).toBeCloseTo(local.x, 9);
     expect(back.y).toBeCloseTo(local.y, 9);
+  });
+});
+
+describe('runFromPoints', () => {
+  it('중심·길이·방향을 구한다(수평 오른쪽)', () => {
+    const r = runFromPoints({ x: 0, y: 0 }, { x: 10, y: 0 });
+    expect(r.center).toEqual({ x: 5, y: 0 });
+    expect(r.length).toBeCloseTo(10, 9);
+    expect(r.rotation).toBeCloseTo(0, 9);
+  });
+
+  it('대각선 길이·각도', () => {
+    const r = runFromPoints({ x: 0, y: 0 }, { x: 3, y: 4 });
+    expect(r.length).toBeCloseTo(5, 9);
+    expect(r.rotation).toBeCloseTo(Math.atan2(4, 3), 9);
+    expect(r.center).toEqual({ x: 1.5, y: 2 });
   });
 });
 

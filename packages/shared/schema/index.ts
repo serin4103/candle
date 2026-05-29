@@ -50,12 +50,17 @@ export const LetteringElement = z.object({
   color: z.string(),
 });
 
-/** 파이핑(크림 장식) (PRD-M3). */
+/**
+ * 파이핑(크림 장식) (PRD-M3). 시트 위를 드래그한 길이만큼 모티프가 반복되는
+ * "선" 요소다. length는 전개도(cm) 기준 런 길이(로컬 x축 방향), transform.x·y는
+ * 런의 중심, rotation은 드래그 방향.
+ */
 export const PipingElement = z.object({
   ...elementBase,
   type: z.literal('piping'),
   variant: z.string(),
   color: z.string(),
+  length: z.number().positive(),
 });
 
 /** 손그림 (PRD-S1 대비 선언 — Must 미사용). */

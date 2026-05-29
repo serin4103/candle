@@ -32,6 +32,11 @@ export interface DesignState {
   selectedId: string | null;
   /** 전개도 캔버스 뷰포트(팬/줌). */
   viewport: Viewport;
+  /**
+   * 파이핑 그리기 모드. 활성이면 캔버스 드래그가 파이핑 런을 그린다(선택/이동 대신).
+   * null이면 일반 편집 모드. (표현/도구 상태)
+   */
+  pendingPiping: { variant: string; color: string } | null;
 
   // ── 시트(케이크) ──
   setShape: (shape: Shape) => void;
@@ -53,6 +58,8 @@ export interface DesignState {
   // ── 표현 상태 ──
   select: (id: string | null) => void;
   setViewport: (viewport: Viewport) => void;
+  /** 파이핑 그리기 모드 설정/해제. */
+  setPendingPiping: (pending: { variant: string; color: string } | null) => void;
 
   // ── 문서 로드/스냅샷 ──
   /** 외부 디자인 문서를 검증 후 적재. */
@@ -79,6 +86,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   design: createDefaultDesign(),
   selectedId: null,
   viewport: { ...DEFAULT_VIEWPORT },
+  pendingPiping: null,
 
   setShape: (shape) =>
     set((s) => ({ design: { ...s.design, shape } })),
@@ -167,8 +175,10 @@ export const useDesignStore = create<DesignState>((set, get) => ({
 
   setViewport: (viewport) => set({ viewport }),
 
+  setPendingPiping: (pending) => set({ pendingPiping: pending }),
+
   loadDesign: (design) =>
-    set({ design: validateDesign(design), selectedId: null }),
+    set({ design: validateDesign(design), selectedId: null, pendingPiping: null }),
 
   getDesignSnapshot: () => structuredClone(validateDesign(get().design)),
 }));

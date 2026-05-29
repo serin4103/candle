@@ -56,9 +56,12 @@ export function illustrationAsset(assetId: string): IllustrationAsset | undefine
 // ── 로컬 크기(스케일 1, 전개도 cm) ─────────────────────────────────
 /** 일러스트 긴 변(cm). 비율에 맞춰 다른 변을 줄인다. */
 export const ILLUSTRATION_SIZE = 14;
-/** 파이핑 폭·높이(cm). */
-export const PIPING_WIDTH = 20;
+/** 파이핑 띠 높이(cm). */
 export const PIPING_HEIGHT = 8;
+/** 파이핑 모티프(반복 단위) 길이(cm). 런 길이를 이 값으로 나눠 반복 횟수를 정한다. */
+export const PIPING_UNIT = 7;
+/** 파이핑 런 최소 길이(cm) — 클릭만 해도 최소 한 모티프는 보이도록. */
+export const MIN_PIPING_LENGTH = PIPING_UNIT;
 /** 레터링 폰트 크기(cm)와 글자당 가로 비율. */
 export const LETTER_FONT_CM = 9;
 const LETTER_ASPECT = 0.62;
@@ -74,7 +77,8 @@ export function elementLocalSize(element: Element): { width: number; height: num
       };
     }
     case 'piping':
-      return { width: PIPING_WIDTH, height: PIPING_HEIGHT };
+      // 드래그한 런 길이가 곧 가로 폭.
+      return { width: Math.max(MIN_PIPING_LENGTH, element.length), height: PIPING_HEIGHT };
     case 'illustration': {
       // 긴 변을 ILLUSTRATION_SIZE로 두고 비율대로 다른 변을 맞춘다.
       const aspect = illustrationAsset(element.assetId)?.aspect ?? 1;

@@ -317,6 +317,25 @@ export function applyForwardRotation(transform: Transform, local: Point): Point 
   };
 }
 
+// ── 드래그 런(파이핑 등) ────────────────────────────────────────────
+
+/**
+ * 두 전개도 점(드래그 시작·끝)으로부터 "런" 요소의 중심·방향·길이를 구한다.
+ * 파이핑처럼 드래그한 길이만큼 모티프를 반복하는 선 요소 생성에 쓴다.
+ */
+export function runFromPoints(
+  start: Point,
+  end: Point,
+): { center: Point; rotation: number; length: number } {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  return {
+    center: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
+    rotation: Math.atan2(dy, dx),
+    length: Math.hypot(dx, dy),
+  };
+}
+
 // ── 규격 변경 재계산 ────────────────────────────────────────────────
 
 /** 규격 변경 시 전개도·파생 치수를 재계산 (M4/S5 대비). */

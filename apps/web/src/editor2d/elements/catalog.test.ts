@@ -37,13 +37,22 @@ describe('elementLocalSize', () => {
     const base = { id: 'x', zIndex: 0, transform: { x: 0, y: 0, scale: 1, rotation: 0 } };
     const sizes = [
       elementLocalSize({ ...base, type: 'illustration', assetId: 'a' }),
-      elementLocalSize({ ...base, type: 'piping', variant: 'dots', color: '#fff' }),
+      elementLocalSize({ ...base, type: 'piping', variant: 'dots', color: '#fff', length: 30 }),
       elementLocalSize({ ...base, type: 'lettering', text: 'Hi', font: 'serif', color: '#000' }),
     ];
     for (const s of sizes) {
       expect(s.width).toBeGreaterThan(0);
       expect(s.height).toBeGreaterThan(0);
     }
+  });
+
+  it('파이핑 폭은 런 길이(length)를 따른다', () => {
+    const base = { id: 'x', zIndex: 0, transform: { x: 0, y: 0, scale: 1, rotation: 0 } };
+    const piping = (length: number) =>
+      elementLocalSize({ ...base, type: 'piping', variant: 'dots', color: '#fff', length });
+    expect(piping(40).width).toBeCloseTo(40, 6);
+    // 아주 짧아도 최소 한 모티프 폭은 유지.
+    expect(piping(0.1).width).toBeGreaterThan(0.1);
   });
 
   it('레터링 폭은 글자 수에 비례해 커진다', () => {

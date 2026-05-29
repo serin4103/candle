@@ -6,8 +6,8 @@ import {
   illustrationAsset,
   elementLocalSize,
   ILLUSTRATION_SIZE,
-  PIPING_WIDTH,
   PIPING_HEIGHT,
+  PIPING_UNIT,
   LETTER_FONT_CM,
 } from './catalog';
 
@@ -15,41 +15,70 @@ export interface ElementViewProps {
   element: Element;
 }
 
-/** 파이핑 변형을 중심(0,0) 기준 도형으로 그린다. */
-function Piping({ variant, color }: { variant: string; color: string }) {
-  const halfW = PIPING_WIDTH / 2;
+export interface PipingRunProps {
+  variant: string;
+  color: string;
+  /** 런 길이(cm). 이 길이에 맞춰 모티프가 반복된다. */
+  length: number;
+}
+
+/**
+ * 파이핑 런 — 중심(0,0) 기준으로 length만큼 가로로 펼쳐진 띠에 모티프를 반복한다.
+ * 반복 횟수는 length ÷ PIPING_UNIT. ElementView와 라이브러리 미리보기가 공유한다.
+ */
+export function PipingRun({ variant, color, length }: PipingRunProps) {
+  const half = length / 2;
+  const units = Math.max(1, Math.round(length / PIPING_UNIT));
+
   if (variant === 'scallop') {
-    // 아래로 볼록한 스캘럽(반원) 4개.
-    const n = 4;
-    const w = PIPING_WIDTH / n;
+    // 아래로 볼록한 반원을 연달아.
+    const w = length / units;
     const r = w / 2;
-    let d = `M ${-halfW} 0`;
-    for (let i = 0; i < n; i++) {
-      const x = -halfW + (i + 1) * w;
-      d += ` A ${r} ${r} 0 0 0 ${x} 0`;
+    let d = `M ${-half} 0`;
+    for (let i = 0; i < units; i++) {
+      const x = -half + (i + 1) * w;
+      d += ` A ${r} ${r} 0 0 0 ${x.toFixed(2)} 0`;
     }
-    return <path d={d} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" />;
+    return (
+      <path
+        d={d}
+        fill="none"
+        stroke={color}
+        strokeWidth={PIPING_HEIGHT * 0.22}
+        strokeLinecap="round"
+      />
+    );
   }
+
   if (variant === 'star-tip') {
-    // 별 5각.
-    const spikes = 5;
+    // 별 5각을 일정 간격으로.
     const outer = PIPING_HEIGHT / 2;
     const inner = outer * 0.45;
-    const pts: string[] = [];
-    for (let i = 0; i < spikes * 2; i++) {
-      const rad = (Math.PI * i) / spikes - Math.PI / 2;
-      const r = i % 2 === 0 ? outer : inner;
-      pts.push(`${(Math.cos(rad) * r).toFixed(2)},${(Math.sin(rad) * r).toFixed(2)}`);
+    const star: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const rad = (Math.PI * i) / 5 - Math.PI / 2;
+      const rr = i % 2 === 0 ? outer : inner;
+      star.push(`${(Math.cos(rad) * rr).toFixed(2)},${(Math.sin(rad) * rr).toFixed(2)}`);
     }
-    return <polygon points={pts.join(' ')} fill={color} />;
+    const n = units + 1;
+    const step = n > 1 ? length / (n - 1) : 0;
+    return (
+      <g fill={color}>
+        {Array.from({ length: n }, (_, i) => (
+          <polygon key={i} points={star.join(' ')} transform={`translate(${(-half + i * step).toFixed(2)} 0)`} />
+        ))}
+      </g>
+    );
   }
-  // dots — 가로 도트 줄.
-  const count = 5;
-  const gap = PIPING_WIDTH / (count - 1);
+
+  // dots — 일정 간격 도트.
+  const n = units + 1;
+  const step = n > 1 ? length / (n - 1) : 0;
+  const r = PIPING_HEIGHT * 0.3;
   return (
-    <g>
-      {Array.from({ length: count }, (_, i) => (
-        <circle key={i} cx={-halfW + i * gap} cy={0} r={PIPING_HEIGHT / 3} fill={color} />
+    <g fill={color}>
+      {Array.from({ length: n }, (_, i) => (
+        <circle key={i} cx={(-half + i * step).toFixed(2)} cy={0} r={r} />
       ))}
     </g>
   );
@@ -79,7 +108,7 @@ export function ElementView({ element }: ElementViewProps) {
       );
       break;
     case 'piping':
-      body = <Piping variant={element.variant} color={element.color} />;
+      body = <PipingRun variant={element.variant} color={element.color} length={element.length} />;
       break;
     case 'illustration': {
       const asset = illustrationAsset(element.assetId);
