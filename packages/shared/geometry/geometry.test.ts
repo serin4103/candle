@@ -65,6 +65,16 @@ describe('buildCrossSection', () => {
     const width = Math.max(...xs) - Math.min(...xs);
     expect(width).toBeCloseTo(diameterForSize(spec.size), 6);
   });
+
+  it('하트는 위가 넓고 아래가 뾰족 (꼭지점 하단·z>0, 최대폭은 상단·z<0)', () => {
+    const cs = buildCrossSection('heart', spec);
+    // 최대 x(오른쪽 로브)는 상단(z<0)에 위치.
+    const widest = cs.points.reduce((m, p) => (p.x > m.x ? p : m), cs.points[0]!);
+    expect(widest.z).toBeLessThan(0);
+    // 최대 z(아래 꼭지점)는 가로 중앙(x≈0).
+    const lowest = cs.points.reduce((m, p) => (p.z > m.z ? p : m), cs.points[0]!);
+    expect(Math.abs(lowest.x)).toBeLessThan(0.05 * diameterForSize(spec.size));
+  });
 });
 
 describe('getNet', () => {

@@ -21,14 +21,19 @@ describe('topOutlinePath', () => {
     expect(circle).not.toBe(heart);
   });
 
-  it('좌표가 [ox, ox+width] 범위 안에 정렬된다', () => {
+  it('좌표가 윗면 영역(width×height) 박스 안에 정렬된다', () => {
     const net = getNet('heart', spec);
     const ox = 5;
-    const path = topOutlinePath(net.crossSection.points, ox, ox);
-    const coords = path.match(/-?\d+\.\d+/g)!.map(Number);
-    for (const c of coords) {
-      expect(c).toBeGreaterThanOrEqual(ox - 0.01);
-      expect(c).toBeLessThanOrEqual(ox + net.top.width + 0.01);
+    const oy = 7;
+    const path = topOutlinePath(net.crossSection.points, ox, oy);
+    const nums = path.match(/-?\d+\.\d+/g)!.map(Number);
+    for (let i = 0; i < nums.length; i += 2) {
+      const x = nums[i]!;
+      const y = nums[i + 1]!;
+      expect(x).toBeGreaterThanOrEqual(ox - 0.01);
+      expect(x).toBeLessThanOrEqual(ox + net.top.width + 0.01);
+      expect(y).toBeGreaterThanOrEqual(oy - 0.01);
+      expect(y).toBeLessThanOrEqual(oy + net.top.height + 0.01);
     }
   });
 });

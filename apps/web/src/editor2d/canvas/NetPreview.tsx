@@ -82,7 +82,6 @@ export function NetPreview() {
         y={sideY}
         width={sideW}
         height={sideH}
-        rx={1}
         fill={creamColor}
         filter="url(#net-soft-shadow)"
       />

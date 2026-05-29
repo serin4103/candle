@@ -100,17 +100,48 @@ function dist(a: Point3, b: Point3): number {
   return Math.hypot(a.x - b.x, a.z - b.z);
 }
 
-/** 표준 파라메트릭 하트 곡선을 단위 정규화해 샘플링한다. */
-function heartUnitPoints(samples: number): Point3[] {
-  const raw: Point3[] = [];
-  for (let i = 0; i < samples; i++) {
-    const t = (i / samples) * Math.PI * 2;
-    const x = 16 * Math.sin(t) ** 3;
-    // 위가 양수가 되도록 부호 반전 (top-down에서 z 축).
-    const z =
-      13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-    raw.push({ x, z });
+/** 큐빅 베지에를 [0,steps) 구간으로 샘플링(끝점 제외 — 곡선 연결부 중복 방지). */
+function cubicBezier(
+  p0: Point3,
+  p1: Point3,
+  p2: Point3,
+  p3: Point3,
+  steps: number,
+): Point3[] {
+  const pts: Point3[] = [];
+  for (let i = 0; i < steps; i++) {
+    const t = i / steps;
+    const u = 1 - t;
+    const a = u * u * u;
+    const b = 3 * u * u * t;
+    const c = 3 * u * t * t;
+    const d = t * t * t;
+    pts.push({
+      x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+      z: a * p0.z + b * p1.z + c * p2.z + d * p3.z,
+    });
   }
+  return pts;
+}
+
+/**
+ * 깔끔한 둥근 하트 외곽선을 단위 정규화해 만든다.
+ * 베지에 4개로 구성: 윗쪽 가운데 갈라짐(cleft)에서 시계 방향으로 돌아 아래 꼭지점까지.
+ * z는 아래로 증가(작을수록 위) — 갈라짐이 위, 뾰족한 꼭지점이 아래에 온다.
+ */
+function heartUnitPoints(samples: number): Point3[] {
+  const steps = Math.max(2, Math.floor(samples / 4));
+  const P = (x: number, z: number): Point3 => ({ x, z });
+  const raw: Point3[] = [
+    // 갈라짐 → 왼쪽 로브 위 → 왼쪽 바깥
+    ...cubicBezier(P(0.5, 0.3), P(0.5, 0.1), P(0.1, 0.1), P(0.1, 0.4), steps),
+    // 왼쪽 바깥 → 아래 꼭지점
+    ...cubicBezier(P(0.1, 0.4), P(0.1, 0.68), P(0.36, 0.8), P(0.5, 0.98), steps),
+    // 아래 꼭지점 → 오른쪽 바깥
+    ...cubicBezier(P(0.5, 0.98), P(0.64, 0.8), P(0.9, 0.68), P(0.9, 0.4), steps),
+    // 오른쪽 바깥 → 오른쪽 로브 위 → 갈라짐
+    ...cubicBezier(P(0.9, 0.4), P(0.9, 0.1), P(0.5, 0.1), P(0.5, 0.3), steps),
+  ];
   // 가로 폭이 1이 되도록 정규화하고 중심을 원점으로.
   const xs = raw.map((p) => p.x);
   const zs = raw.map((p) => p.z);
@@ -128,7 +159,7 @@ function heartUnitPoints(samples: number): Point3[] {
  * shape별 단면 외곽선을 만든다. xz 평면(top-down), 원점 중심.
  * - circle: 반지름 r 원을 샘플링
  * - square: 호수를 한 변으로 보는 정사각형 네 변 샘플링
- * - heart: 파라메트릭 하트를 지름에 맞춰 스케일
+ * - heart: 깔끔한 베지에 하트(꼭지점 아래)를 지름(가로 폭)에 맞춰 스케일
  */
 export function buildCrossSection(shape: Shape, spec: Spec): CrossSection {
   const diameter = diameterForSize(spec.size);
