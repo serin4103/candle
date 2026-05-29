@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { getNet } from '@candle/shared/geometry';
 import type { Spec } from '@candle/shared';
-import { topOutlinePath, sideScallopPath } from './netPath';
+import { topOutlinePath } from './netPath';
 
 const spec: Spec = { size: 1, height: 7, layers: 1 };
 
@@ -30,14 +30,6 @@ describe('topOutlinePath', () => {
       expect(c).toBeGreaterThanOrEqual(ox - 0.01);
       expect(c).toBeLessThanOrEqual(ox + net.top.width + 0.01);
     }
-  });
-});
-
-describe('sideScallopPath', () => {
-  it('M으로 시작하고 count개의 호(A)를 포함한다', () => {
-    const path = sideScallopPath(0, 0, 60, 8);
-    expect(path.startsWith('M')).toBe(true);
-    expect((path.match(/A/g) ?? []).length).toBe(8);
   });
 });
 

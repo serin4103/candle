@@ -17,22 +17,3 @@ export function topOutlinePath(points: Point3[], ox: number, oy: number): string
   });
   return `${cmds.join(' ')} Z`;
 }
-
-/**
- * (x,y)에서 시작해 width를 count개의 아래로 볼록한 반원으로 채우는 스캘럽 path.
- * 옆면(SIDE) 상단의 크림 테두리 장식.
- */
-export function sideScallopPath(
-  x: number,
-  y: number,
-  width: number,
-  count: number,
-): string {
-  const r = width / (count * 2);
-  let d = `M${x.toFixed(2)},${y.toFixed(2)}`;
-  for (let i = 0; i < count; i++) {
-    const endX = x + (i + 1) * 2 * r;
-    d += ` A${r.toFixed(2)},${r.toFixed(2)} 0 0 1 ${endX.toFixed(2)},${y.toFixed(2)}`;
-  }
-  return d;
-}
