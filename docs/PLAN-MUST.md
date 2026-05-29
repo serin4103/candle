@@ -76,8 +76,8 @@ Zustand 스토어. **액션은 geometry만 호출, 렌더 기술 미import.**
 - 액션(Must 범위): `setShape`, `setBaseColor`/`setCreamColor`, `addElement`, `moveElement`, `scaleElement`, `rotateElement`, `deleteElement`, `reorderElement`(zIndex), `updateLettering`(text/font/color), `loadDesign`, `getDesignSnapshot`
 
 **완료 기준**:
-- [ ] 스토어 액션 단위 테스트 통과.
-- [ ] geometry 변환 함수 테스트 통과(하트 포함 또는 리스크 보고).
+- [x] 스토어 액션 단위 테스트 통과.
+- [x] geometry 변환 함수 테스트 통과(하트 포함 또는 리스크 보고).
 
 ---
 
