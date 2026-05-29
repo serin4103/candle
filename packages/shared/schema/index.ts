@@ -39,6 +39,11 @@ export const IllustrationElement = z.object({
   ...elementBase,
   type: z.literal('illustration'),
   assetId: z.string(),
+  /**
+   * 색상 교체(선택). 자산 원본 팔레트와 같은 순서로, colors[i]가 있으면
+   * 원본 i번째 색을 그 색으로 바꿔 렌더한다. 없으면 원본색 유지.
+   */
+  colors: z.array(z.string()).optional(),
 });
 
 /** 레터링 — 텍스트·폰트·색상 변경 대상 (PRD-M3). */

@@ -4,6 +4,7 @@
 import type { Element } from '@candle/shared';
 import {
   illustrationAsset,
+  illustrationDataUri,
   elementLocalSize,
   ILLUSTRATION_SIZE,
   PIPING_HEIGHT,
@@ -115,7 +116,7 @@ export function ElementView({ element }: ElementViewProps) {
       const { width, height } = elementLocalSize(element);
       body = asset ? (
         <image
-          href={asset.src}
+          href={illustrationDataUri(asset, element.colors)}
           x={-width / 2}
           y={-height / 2}
           width={width}

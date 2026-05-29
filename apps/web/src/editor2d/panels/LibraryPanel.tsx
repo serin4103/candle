@@ -5,7 +5,13 @@ import { getNet } from '@candle/shared/geometry';
 import type { ElementInput } from '../../document/store';
 import { useDesignStore } from '../../document/store';
 import { Panel, Button, palette } from '../../ui';
-import { illustrations, pipingVariants, letteringFonts, PipingPreview } from '../elements';
+import {
+  illustrations,
+  pipingVariants,
+  letteringFonts,
+  PipingPreview,
+  illustrationDataUri,
+} from '../elements';
 
 const DEFAULT_LETTER_COLOR = '#5a3b3b';
 /** 파이핑 기본색 — 크림 위·미리보기에서 잘 보이는 파스텔 핑크. */
@@ -68,7 +74,7 @@ export function LibraryPanel() {
               onClick={() => add({ type: 'illustration', assetId: a.id })}
             >
               <img
-                src={a.src}
+                src={illustrationDataUri(a)}
                 alt={a.label}
                 style={{ width: 36, height: 36, objectFit: 'contain', pointerEvents: 'none' }}
               />

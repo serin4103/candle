@@ -22,6 +22,12 @@ export type ElementInput = DistributiveOmit<Element, 'id' | 'zIndex'> & {
 /** 레터링 변경 가능한 필드. */
 export type LetteringPatch = Partial<Pick<Extract<Element, { type: 'lettering' }>, 'text' | 'font' | 'color'>>;
 
+/** 파이핑 변경 가능한 필드. */
+export type PipingPatch = Partial<Pick<Extract<Element, { type: 'piping' }>, 'color'>>;
+
+/** 일러스트 변경 가능한 필드(색상 교체). */
+export type IllustrationPatch = Partial<Pick<Extract<Element, { type: 'illustration' }>, 'colors'>>;
+
 /** 기본 뷰포트(원점·1배). */
 const DEFAULT_VIEWPORT: Viewport = { panX: 0, panY: 0, zoom: 1 };
 
@@ -54,6 +60,10 @@ export interface DesignState {
   reorderElement: (id: string, zIndex: number) => void;
   /** 레터링 텍스트·폰트·색상 변경. */
   updateLettering: (id: string, patch: LetteringPatch) => void;
+  /** 파이핑 색상 변경. */
+  updatePiping: (id: string, patch: PipingPatch) => void;
+  /** 일러스트 색상 교체. */
+  updateIllustration: (id: string, patch: IllustrationPatch) => void;
 
   // ── 표현 상태 ──
   select: (id: string | null) => void;
@@ -167,6 +177,26 @@ export const useDesignStore = create<DesignState>((set, get) => ({
         ...s.design,
         elements: mapElement(s.design.elements, id, (el) =>
           el.type === 'lettering' ? { ...el, ...patch } : el,
+        ),
+      },
+    })),
+
+  updatePiping: (id, patch) =>
+    set((s) => ({
+      design: {
+        ...s.design,
+        elements: mapElement(s.design.elements, id, (el) =>
+          el.type === 'piping' ? { ...el, ...patch } : el,
+        ),
+      },
+    })),
+
+  updateIllustration: (id, patch) =>
+    set((s) => ({
+      design: {
+        ...s.design,
+        elements: mapElement(s.design.elements, id, (el) =>
+          el.type === 'illustration' ? { ...el, ...patch } : el,
         ),
       },
     })),

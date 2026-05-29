@@ -3,14 +3,26 @@
 // 공통은 레이어 순서(앞/뒤)와 삭제.
 import { Panel, Button, ColorPicker, palette, fontStack } from '../../ui';
 import { useDesignStore } from '../../document/store';
-import { letteringFonts } from '../elements';
+import { letteringFonts, illustrationAsset } from '../elements';
 
 const LETTER_SWATCHES = ['#5a3b3b', '#ffffff', '#e87f97', '#d6a23e', '#6b8e72', '#5b7fa6'] as const;
+/** 파이핑·일러스트 색상 스와치(브랜드 파스텔 + 기본 흑백). */
+const ELEMENT_SWATCHES = [
+  '#111111',
+  '#ffffff',
+  '#ef9aae',
+  '#e87f97',
+  '#d6a23e',
+  '#6b8e72',
+  '#5b7fa6',
+] as const;
 
 export function PropertiesPanel() {
   const selectedId = useDesignStore((s) => s.selectedId);
   const elements = useDesignStore((s) => s.design.elements);
   const updateLettering = useDesignStore((s) => s.updateLettering);
+  const updatePiping = useDesignStore((s) => s.updatePiping);
+  const updateIllustration = useDesignStore((s) => s.updateIllustration);
   const reorderElement = useDesignStore((s) => s.reorderElement);
   const deleteElement = useDesignStore((s) => s.deleteElement);
 
@@ -89,6 +101,46 @@ export function PropertiesPanel() {
           </div>
         </>
       )}
+
+      {selected.type === 'piping' && (
+        <div>
+          <p style={labelStyle}>색상</p>
+          <ColorPicker
+            label="파이핑색"
+            value={selected.color}
+            swatches={ELEMENT_SWATCHES}
+            onChange={(c) => updatePiping(selected.id, { color: c })}
+          />
+        </div>
+      )}
+
+      {selected.type === 'illustration' &&
+        (() => {
+          const asset = illustrationAsset(selected.assetId);
+          if (!asset || asset.palette.length === 0) return null;
+          // 원본 팔레트 순서대로, 현재 적용된 색(없으면 원본색)을 보여준다.
+          const effective = asset.palette.map((orig, i) => selected.colors?.[i] ?? orig);
+          const single = asset.palette.length === 1;
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {asset.palette.map((orig, i) => (
+                <div key={`${orig}-${i}`}>
+                  <p style={labelStyle}>{single ? '색상' : `색상 ${i + 1}`}</p>
+                  <ColorPicker
+                    label={single ? '색상' : `색상 ${i + 1}`}
+                    value={effective[i]!}
+                    swatches={ELEMENT_SWATCHES}
+                    onChange={(c) => {
+                      const next = [...effective];
+                      next[i] = c;
+                      updateIllustration(selected.id, { colors: next });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
       <div>
         <p style={labelStyle}>레이어 순서</p>

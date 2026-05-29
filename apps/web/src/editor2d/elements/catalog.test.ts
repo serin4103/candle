@@ -4,6 +4,8 @@ import {
   pipingVariants,
   letteringFonts,
   illustrationAsset,
+  illustrationDataUri,
+  recoloredSvg,
   elementLocalSize,
 } from './catalog';
 
@@ -16,19 +18,57 @@ describe('카탈로그 — 3개 카테고리 제공', () => {
 });
 
 describe('illustrationAsset', () => {
-  it('알려진 id는 SVG 자산(src·aspect), 미상은 undefined', () => {
+  it('알려진 id는 SVG 자산(raw·aspect·palette), 미상은 undefined', () => {
     const cat = illustrationAsset('cat-face');
     expect(cat).toBeDefined();
-    expect(cat!.src).toBeTruthy();
+    expect(cat!.raw).toContain('<svg');
     expect(cat!.aspect).toBeGreaterThan(0);
+    expect(cat!.palette.length).toBeGreaterThan(0);
     expect(illustrationAsset('???')).toBeUndefined();
   });
 
-  it('모든 일러스트가 SVG 자산을 가리킨다', () => {
+  it('모든 일러스트가 SVG 원본·팔레트를 가진다', () => {
     for (const a of illustrations) {
-      expect(a.src).toMatch(/\.svg/);
+      expect(a.raw).toContain('<svg');
       expect(a.aspect).toBeGreaterThan(0);
+      expect(a.palette.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('일러스트 색상 교체', () => {
+  it('palette 색을 colors로 치환한다(없으면 원본)', () => {
+    const cat = illustrationAsset('cat-face')!;
+    const orig = cat.palette[0]!;
+    const replaced = recoloredSvg(cat, ['#ff0000']);
+    expect(replaced).toContain('#ff0000');
+    expect(replaced.toLowerCase()).not.toContain(orig.toLowerCase());
+    // colors 없으면 원본 유지.
+    expect(recoloredSvg(cat, undefined)).toBe(cat.raw);
+  });
+
+  it('데이터 URI를 만든다', () => {
+    const cat = illustrationAsset('cat-face')!;
+    expect(illustrationDataUri(cat)).toMatch(/^data:image\/svg\+xml,/);
+  });
+
+  it('두 색을 각각 독립적으로 교체한다(한쪽만도 가능)', () => {
+    const twoColor = {
+      id: 'two',
+      label: '두색',
+      aspect: 1,
+      raw: '<svg><path fill="#aaaaaa"/><path stroke="#bbbbbb"/></svg>',
+      palette: ['#aaaaaa', '#bbbbbb'],
+    };
+    const both = recoloredSvg(twoColor, ['#111111', '#222222']);
+    expect(both).toContain('#111111');
+    expect(both).toContain('#222222');
+    expect(both).not.toContain('#aaaaaa');
+    expect(both).not.toContain('#bbbbbb');
+
+    const onlyFirst = recoloredSvg(twoColor, ['#111111']);
+    expect(onlyFirst).toContain('#111111');
+    expect(onlyFirst).toContain('#bbbbbb'); // 두 번째는 원본 유지
   });
 });
 
