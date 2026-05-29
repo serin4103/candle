@@ -1,0 +1,23 @@
+{
+  "skill_name": "phase-runner",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "docs/PLAN-MUST.md의 phase 1 진행해줘",
+      "expected_output": "docs/must-phase-1-plan.md 생성, Phase 1(schema/geometry/store) 구현, typecheck/build/test/lint 통과, 마스터 문서 Phase 1 완료 기준 체크박스 갱신, 커밋 생성",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "PLAN-MUST 문서 보고 다음 phase 완료해줘",
+      "expected_output": "phase 번호 미지정 → 완료 기준이 비어있는 가장 앞선 phase(Phase 1)를 추론해 진행. plan 파일 생성·구현·검증·체크·커밋",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "docs/PLAN-MUST.md phase 3 구현하고 검증까지 해줘",
+      "expected_output": "Phase 3는 Phase 1·2 의존. 선행 phase 미완료를 감지해 사용자에게 알리고 진행 여부 확인(가드레일 동작)",
+      "files": []
+    }
+  ]
+}
