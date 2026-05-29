@@ -3,7 +3,7 @@ import {
   illustrations,
   pipingVariants,
   letteringFonts,
-  illustrationGlyph,
+  illustrationAsset,
   elementLocalSize,
 } from './catalog';
 
@@ -15,10 +15,20 @@ describe('카탈로그 — 3개 카테고리 제공', () => {
   });
 });
 
-describe('illustrationGlyph', () => {
-  it('알려진 id는 글리프, 미상은 기본값', () => {
-    expect(illustrationGlyph('strawberry')).toBe('🍓');
-    expect(illustrationGlyph('???')).toBe('🍰');
+describe('illustrationAsset', () => {
+  it('알려진 id는 SVG 자산(src·aspect), 미상은 undefined', () => {
+    const cat = illustrationAsset('cat-face');
+    expect(cat).toBeDefined();
+    expect(cat!.src).toBeTruthy();
+    expect(cat!.aspect).toBeGreaterThan(0);
+    expect(illustrationAsset('???')).toBeUndefined();
+  });
+
+  it('모든 일러스트가 SVG 자산을 가리킨다', () => {
+    for (const a of illustrations) {
+      expect(a.src).toMatch(/\.svg/);
+      expect(a.aspect).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -3,7 +3,8 @@
 // 계산 금지: 크기는 catalog.elementLocalSize, 좌표 변환은 그룹 transform이 담당.
 import type { Element } from '@candle/shared';
 import {
-  illustrationGlyph,
+  illustrationAsset,
+  elementLocalSize,
   ILLUSTRATION_SIZE,
   PIPING_WIDTH,
   PIPING_HEIGHT,
@@ -80,13 +81,29 @@ export function ElementView({ element }: ElementViewProps) {
     case 'piping':
       body = <Piping variant={element.variant} color={element.color} />;
       break;
-    case 'illustration':
-      body = (
-        <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontSize={ILLUSTRATION_SIZE}>
-          {illustrationGlyph(element.assetId)}
-        </text>
+    case 'illustration': {
+      const asset = illustrationAsset(element.assetId);
+      const { width, height } = elementLocalSize(element);
+      body = asset ? (
+        <image
+          href={asset.src}
+          x={-width / 2}
+          y={-height / 2}
+          width={width}
+          height={height}
+          preserveAspectRatio="xMidYMid meet"
+        />
+      ) : (
+        <rect
+          x={-ILLUSTRATION_SIZE / 2}
+          y={-ILLUSTRATION_SIZE / 2}
+          width={ILLUSTRATION_SIZE}
+          height={ILLUSTRATION_SIZE}
+          fill="#ccc"
+        />
       );
       break;
+    }
     default:
       // image/drawing(Must 미사용) — 자리표시 박스.
       body = (

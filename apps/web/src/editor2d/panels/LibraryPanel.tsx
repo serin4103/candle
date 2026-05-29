@@ -64,7 +64,11 @@ export function LibraryPanel() {
               style={tileStyle}
               onClick={() => add({ type: 'illustration', assetId: a.id })}
             >
-              {a.glyph}
+              <img
+                src={a.src}
+                alt={a.label}
+                style={{ width: 36, height: 36, objectFit: 'contain', pointerEvents: 'none' }}
+              />
             </Button>
           ))}
         </div>
