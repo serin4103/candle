@@ -81,17 +81,20 @@ describe('buildCrossSection', () => {
 
 describe('getNet', () => {
   it.each(['circle', 'square', 'heart'] as const)(
-    '%s 전개도: 옆면 width=둘레, height=전체높이, 윗면은 옆면 아래',
+    '%s 전개도: 옆면 width=둘레, height=전체높이, 윗면은 옆면 위 가운데',
     (shape) => {
       const net = getNet(shape, spec);
       const cs = buildCrossSection(shape, spec);
       expect(net.side.width).toBeCloseTo(cs.perimeter, 6);
       expect(net.side.height).toBeCloseTo(totalHeight(spec), 6);
-      // 윗면은 옆면 아래(여백 포함).
-      expect(net.top.y).toBeGreaterThan(net.side.y + net.side.height);
+      // 윗면은 옆면 위(여백 포함).
+      expect(net.top.y + net.top.height).toBeLessThanOrEqual(net.side.y);
+      // 가로 중앙 정렬: 면 중심이 bounds 가로 중심과 같다.
+      expect(net.top.x + net.top.width / 2).toBeCloseTo(net.bounds.width / 2, 6);
+      expect(net.side.x + net.side.width / 2).toBeCloseTo(net.bounds.width / 2, 6);
       // 전체 bounds는 양수이고 모든 영역을 포함.
       expect(net.bounds.width).toBeGreaterThan(0);
-      expect(net.bounds.height).toBeGreaterThanOrEqual(net.top.y + net.top.height);
+      expect(net.bounds.height).toBeCloseTo(net.side.y + net.side.height, 6);
     },
   );
 });

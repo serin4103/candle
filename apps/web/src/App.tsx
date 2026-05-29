@@ -48,13 +48,14 @@ export function App() {
       </header>
 
       {/* 본문: 좌측(케이크·요소) + 중앙 편집기 + 우측 속성 */}
-      <main style={{ display: 'flex', flex: 1, gap: 20, padding: 20, minHeight: 0 }}>
+      <main style={{ display: 'flex', flex: 1, gap: 16, padding: 16, minHeight: 0 }}>
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             gap: 14,
-            width: 260,
+            width: 228,
+            flexShrink: 0,
             overflowY: 'auto',
           }}
         >
@@ -69,12 +70,12 @@ export function App() {
             boxShadow: shadow.card,
             display: 'grid',
             placeItems: 'center',
-            padding: 24,
+            padding: 16,
           }}
         >
           <NetEditor />
         </section>
-        <div style={{ width: 260, overflowY: 'auto' }}>
+        <div style={{ width: 228, flexShrink: 0, overflowY: 'auto' }}>
           <PropertiesPanel />
         </div>
       </main>

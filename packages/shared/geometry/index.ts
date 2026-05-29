@@ -77,8 +77,8 @@ export const SIZE_BASE_DIAMETER_CM = 15;
 export const SIZE_STEP_CM = 3;
 /** 단면 외곽선 샘플 수(원형·하트). */
 export const CROSS_SECTION_SAMPLES = 64;
-/** 옆면과 윗면 사이 전개도 여백(cm). */
-export const NET_GAP_CM = 2;
+/** 옆면과 윗면 사이 전개도 여백(cm). 사이 라벨이 들어갈 공간도 겸한다. */
+export const NET_GAP_CM = 6;
 
 /** 호수 → 지름(cm). 1호=15cm, 호당 +3cm. */
 export function diameterForSize(size: number): number {
@@ -212,7 +212,8 @@ export function buildCrossSection(shape: Shape, spec: Spec): CrossSection {
 
 /**
  * shape·규격으로 전개도를 만든다.
- * 옆면은 둘레×전체높이 사각형, 윗면은 단면 바운딩 박스를 그 아래에 배치한다.
+ * 옆면은 둘레×전체높이 사각형, 윗면은 단면 바운딩 박스. 윗면을 위쪽 가운데,
+ * 옆면을 그 아래 가운데에 배치한다(가로는 둘 다 contentW 기준 중앙 정렬).
  */
 export function getNet(shape: Shape, spec: Spec): Net {
   const crossSection = buildCrossSection(shape, spec);
@@ -224,12 +225,15 @@ export function getNet(shape: Shape, spec: Spec): Net {
   const topW = Math.max(...xs) - Math.min(...xs);
   const topH = Math.max(...zs) - Math.min(...zs);
 
-  const side: Rect = { x: 0, y: 0, width: sideWidth, height };
-  const top: Rect = { x: 0, y: height + NET_GAP_CM, width: topW, height: topH };
-  const bounds = {
-    width: Math.max(sideWidth, topW),
-    height: top.y + topH,
+  const contentW = Math.max(sideWidth, topW);
+  const top: Rect = { x: (contentW - topW) / 2, y: 0, width: topW, height: topH };
+  const side: Rect = {
+    x: (contentW - sideWidth) / 2,
+    y: topH + NET_GAP_CM,
+    width: sideWidth,
+    height,
   };
+  const bounds = { width: contentW, height: side.y + height };
 
   return { shape, side, top, bounds, crossSection };
 }

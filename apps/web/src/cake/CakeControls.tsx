@@ -5,7 +5,7 @@ import { ColorControls } from './ColorControls';
 
 export function CakeControls() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: 260 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
       <Panel title="모양">
         <ShapeSelector />
       </Panel>

@@ -22,7 +22,7 @@ import {
 } from '../tools';
 import { topOutlinePath } from './netPath';
 
-const PAD = 14;
+const PAD = 6;
 // 핸들은 화면 일정 크기(px)로 보이도록 렌더 스케일로 cm 변환해 그린다.
 const HANDLE_R_PX = 5; // 핸들 반지름(px)
 const HANDLE_HIT_PX = 11; // 핸들 히트 반경(px)
@@ -253,7 +253,7 @@ export function NetEditor() {
       style={{
         width: '100%',
         height: '100%',
-        maxHeight: 600,
+        maxHeight: 760,
         touchAction: 'none',
         cursor: pendingPiping ? 'crosshair' : 'default',
       }}

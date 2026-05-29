@@ -32,9 +32,12 @@ export function LibraryPanel() {
   const pendingPiping = useDesignStore((s) => s.pendingPiping);
   const setPendingPiping = useDesignStore((s) => s.setPendingPiping);
 
-  // 새 요소는 옆면(전개) 중앙에 놓는다(전개도 좌표).
+  // 새 요소는 옆면(전개) 중앙에 놓는다(전개도 좌표 — 옆면 위치 반영).
   const net = getNet(shape, spec);
-  const center = { x: net.side.width / 2, y: net.side.height / 2 };
+  const center = {
+    x: net.side.x + net.side.width / 2,
+    y: net.side.y + net.side.height / 2,
+  };
 
   const add = (input: AddInput) => {
     const id = addElement({
