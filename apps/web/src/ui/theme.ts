@@ -28,24 +28,14 @@ export const palette = {
   border: '#f0e3e3',
 } as const;
 
-/** 시트색 팔레트(스펀지·크림 톤). */
-export const sheetSwatches = [
-  '#fce8c8',
-  '#f7e7d3',
-  '#f3d9b5',
-  '#e8c39e',
-  '#fff7ea',
-  '#ffffff',
-] as const;
-
-/** 크림색 팔레트(파스텔). */
+/** 크림색 팔레트(케이크 표면색 — 따뜻한 크림 + 파스텔). */
 export const creamSwatches = [
+  '#fce8c8',
+  '#fff3b0',
   '#f6c6d4',
   '#f4a6b8',
-  '#fbe0e6',
   '#d7ebd0',
   '#cfe3f0',
-  '#fff3b0',
 ] as const;
 
 export const radius = {
@@ -62,3 +52,19 @@ export const shadow = {
 
 export const fontStack =
   "'Pretendard', 'Apple SD Gothic Neo', system-ui, -apple-system, sans-serif";
+
+/**
+ * hex 색을 밝게(amount>0)/어둡게(amount<0) 조정한다(표현용 순수 함수).
+ * #rgb·#rrggbb 입력만 지원하며, 그 외엔 원본을 그대로 돌려준다.
+ */
+export function shade(hex: string, amount: number): string {
+  const m = hex.replace('#', '');
+  const full = m.length === 3 ? m.replace(/(.)/g, '$1$1') : m;
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return hex;
+  const num = parseInt(full, 16);
+  const adj = (c: number) => Math.round(Math.min(255, Math.max(0, c + amount * 255)));
+  const r = adj((num >> 16) & 255);
+  const g = adj((num >> 8) & 255);
+  const b = adj(num & 255);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
