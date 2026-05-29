@@ -7,7 +7,13 @@ import { getNet, runFromPoints } from '@candle/shared/geometry';
 import type { Point } from '@candle/shared/geometry';
 import { useDesignStore } from '../../document/store';
 import { palette, fontStack } from '../../ui';
-import { ElementView, PipingRun, elementLocalSize, MIN_PIPING_LENGTH } from '../elements';
+import {
+  ElementView,
+  PipingRun,
+  elementLocalSize,
+  MIN_PIPING_LENGTH,
+  useImageAssetStore,
+} from '../elements';
 import {
   handlePositions,
   pickTopElement,
@@ -48,6 +54,8 @@ export function NetEditor() {
   const deleteElement = useDesignStore((s) => s.deleteElement);
   const pendingPiping = useDesignStore((s) => s.pendingPiping);
   const setPendingPiping = useDesignStore((s) => s.setPendingPiping);
+  // 이미지 자산이 비동기로 해석되면(version) 요소 마크업을 다시 그린다(PRD-S4).
+  const imageVersion = useImageAssetStore((s) => s.version);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const activeRef = useRef<ActiveGesture | null>(null);
@@ -249,6 +257,7 @@ export function NetEditor() {
       aria-label={`전개도 편집기 (${shape})`}
       data-shape={shape}
       data-element-count={elements.length}
+      data-image-version={imageVersion}
       data-piping-mode={pendingPiping ? pendingPiping.variant : undefined}
       style={{
         width: '100%',

@@ -13,6 +13,7 @@ import {
   PIPING_UNIT,
   LETTER_FONT_CM,
 } from './catalog';
+import { getImageAsset } from './imageAssets';
 
 /** XML 텍스트 노드 이스케이프(&, <, >). */
 function escapeXml(s: string): string {
@@ -99,6 +100,21 @@ function illustrationMarkup(element: Extract<Element, { type: 'illustration' }>)
   );
 }
 
+/**
+ * 업로드 이미지 마크업(PRD-S4) — 레지스트리의 data URI를 <image>로 배치.
+ * 일러스트와 동일 구조라 2D View·3D 베이커가 같은 마크업을 공유한다.
+ * 자산이 아직 해석되지 않았으면 자리표시(재적재 훅이 채우면 재렌더된다).
+ */
+function imageMarkup(element: Extract<Element, { type: 'image' }>): string {
+  const asset = getImageAsset(element.assetId);
+  if (!asset) return placeholderMarkup();
+  const { width, height } = elementLocalSize(element);
+  return (
+    `<image href="${asset.dataUri}" x="${n(-width / 2)}" y="${n(-height / 2)}"` +
+    ` width="${n(width)}" height="${n(height)}" preserveAspectRatio="xMidYMid meet"/>`
+  );
+}
+
 /** 자리표시 박스(자산 없음·미지원 타입). */
 function placeholderMarkup(): string {
   const s = ILLUSTRATION_SIZE;
@@ -114,8 +130,10 @@ export function elementInnerMarkup(element: Element): string {
       return pipingMarkup(element.variant, element.color, element.length);
     case 'illustration':
       return illustrationMarkup(element);
+    case 'image':
+      return imageMarkup(element);
     default:
-      // image/drawing(Must 미사용)
+      // drawing(PRD-S1, 별 Phase)
       return placeholderMarkup();
   }
 }

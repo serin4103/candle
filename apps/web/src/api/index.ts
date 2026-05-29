@@ -5,5 +5,7 @@ export {
   loadByView,
   updateByEdit,
   cloneByView,
+  uploadAsset,
+  assetRawSrc,
   type SaveResult,
 } from './client';

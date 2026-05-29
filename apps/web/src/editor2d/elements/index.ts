@@ -8,3 +8,12 @@ export {
 } from './ElementView';
 export { PipingPreview, type PipingPreviewProps } from './PipingPreview';
 export { elementInnerMarkup, elementGroupMarkup, pipingMarkup } from './elementSvg';
+export {
+  useImageAssetStore,
+  getImageAsset,
+  registerImageAsset,
+  fileToImageAsset,
+  resolveImageAsset,
+  type ResolvedImage,
+} from './imageAssets';
+export { useResolveImageAssets } from './useResolveImageAssets';

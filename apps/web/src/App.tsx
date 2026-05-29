@@ -5,6 +5,7 @@ import { palette, fontStack, radius, shadow, Button } from './ui';
 import { CakeControls } from './cake';
 import { NetEditor } from './editor2d/canvas';
 import { LibraryPanel, PropertiesPanel } from './editor2d/panels';
+import { useResolveImageAssets } from './editor2d/elements';
 import { CakeViewer3D } from './viewer3d';
 import { SharePanel, useShareSession } from './share';
 
@@ -12,6 +13,8 @@ type ViewMode = 'net' | '3d';
 
 export function App() {
   const session = useShareSession();
+  // 공유/복제로 진입했을 때 문서의 image 요소 자산을 서버에서 받아 채운다(PRD-S4).
+  useResolveImageAssets();
   // 열람 링크 진입이면 편집 UI를 숨기고 3D 시안을 먼저 보여준다.
   const readOnly = session.mode === 'view';
   // 뷰 전환은 표현 상태(디자인 문서 아님) — App-local로 둔다.

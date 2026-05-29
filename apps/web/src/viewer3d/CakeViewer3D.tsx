@@ -7,6 +7,7 @@ import { Canvas } from '@react-three/fiber';
 import { CanvasTexture, NoToneMapping, SRGBColorSpace, type Texture } from 'three';
 import { diameterForSize, getNet, totalHeight } from '@candle/shared/geometry';
 import { useDesignStore } from '../document/store';
+import { useImageAssetStore } from '../editor2d/elements';
 import { palette } from '../ui';
 import { buildNetSvg, netTextureSize, rasterizeNetSvg } from './texture';
 import { CakeMesh } from './meshes';
@@ -14,8 +15,10 @@ import { CameraControls } from './controls';
 
 export function CakeViewer3D() {
   const design = useDesignStore((s) => s.design);
+  // 이미지 자산이 비동기로 해석되면(version 증가) SVG를 다시 만들어 재굽기한다(PRD-S4).
+  const imageVersion = useImageAssetStore((s) => s.version);
   // 디자인 전체를 전개도 SVG로 직렬화(순수·저렴). 이 문자열이 곧 "굽기 입력".
-  const svg = useMemo(() => buildNetSvg(design), [design]);
+  const svg = useMemo(() => buildNetSvg(design), [design, imageVersion]);
 
   const [texture, setTexture] = useState<Texture | null>(null);
   const texRef = useRef<Texture | null>(null);

@@ -2,6 +2,7 @@
 // 위임하고, 여기서는 HTTP 매핑(상태코드·에러)만 담당한다.
 import type { FastifyInstance } from 'fastify';
 import { DesignNotFoundError, type DesignService } from './designs';
+import { PayloadTooLargeError, UnsupportedMediaTypeError } from './assets';
 
 interface TokenParams {
   editToken: string;
@@ -45,6 +46,17 @@ export function registerErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error: Error, _req, reply) => {
     if (error instanceof DesignNotFoundError) {
       return reply.code(404).send({ error: error.message });
+    }
+    // 업로드 검증(PRD-S4): 비허용 타입 → 415, 크기 초과 → 413.
+    if (error instanceof UnsupportedMediaTypeError) {
+      return reply.code(415).send({ error: error.message });
+    }
+    if (error instanceof PayloadTooLargeError) {
+      return reply.code(413).send({ error: error.message });
+    }
+    // @fastify/multipart 파일 크기 초과(스트림 단계에서 던짐).
+    if ((error as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
+      return reply.code(413).send({ error: '파일이 너무 큽니다 (최대 50MB).' });
     }
     // shared/schema(zod) 검증 실패 → 잘못된 요청.
     if (error.name === 'ZodError') {

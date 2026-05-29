@@ -5,3 +5,9 @@ export {
   type TokenRole,
 } from './repository';
 export { createSupabaseClient, createSupabaseRepository } from './supabase';
+export {
+  createInMemoryAssetStorage,
+  createSupabaseAssetStorage,
+  type AssetStorage,
+  type StoredAsset,
+} from './assetStorage';

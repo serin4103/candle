@@ -1,6 +1,6 @@
 // api — 백엔드 호출 클라이언트. UI·상태와 분리된 얇은 호출 계층(CLAUDE.md api 규칙).
 // 요청/응답 타입은 packages/shared/schema를 재사용한다. 비즈니스 로직 없음.
-import type { Design, ShareLink } from '@candle/shared';
+import type { Asset, Design, ShareLink } from '@candle/shared';
 
 /** 개발 시 Vite 프록시(/api → api 서버). 배포 시 VITE_API_BASE로 덮어쓴다. */
 const BASE = import.meta.env.VITE_API_BASE ?? '/api';
@@ -55,4 +55,24 @@ export function cloneByView(viewToken: string): Promise<SaveResult> {
   return request(`/designs/by-view/${encodeURIComponent(viewToken)}/clone`, {
     method: 'POST',
   });
+}
+
+/**
+ * 이미지 업로드(PRD-S4). multipart라 content-type은 브라우저가 boundary와 함께
+ * 자동 설정하므로 직접 지정하지 않는다. 검증(타입·크기)은 서버 경계에서 한다.
+ */
+export async function uploadAsset(file: File): Promise<Asset> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${BASE}/assets`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `업로드 실패 (HTTP ${res.status})`);
+  }
+  return res.json() as Promise<Asset>;
+}
+
+/** 자산 원본 바이트의 절대 URL. 디자인 문서는 assetId만 들고 있으므로 id로 구성한다. */
+export function assetRawSrc(assetId: string): string {
+  return `${BASE}/assets/${encodeURIComponent(assetId)}/raw`;
 }

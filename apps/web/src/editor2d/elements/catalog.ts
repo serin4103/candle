@@ -4,6 +4,7 @@
 import type { Element } from '@candle/shared';
 import catFaceRaw from './assets/cat-face.svg?raw';
 import dogFaceRaw from './assets/dog-face.svg?raw';
+import { getImageAsset } from './imageAssets';
 
 /** 일러스트 자산 — assetId로 참조하는 SVG 원본(색상 교체를 위해 텍스트로 들고 있다). */
 export interface IllustrationAsset {
@@ -157,9 +158,16 @@ export function elementLocalSize(element: Element): { width: number; height: num
         ? { width: ILLUSTRATION_SIZE, height: ILLUSTRATION_SIZE / aspect }
         : { width: ILLUSTRATION_SIZE * aspect, height: ILLUSTRATION_SIZE };
     }
-    case 'image':
+    case 'image': {
+      // 업로드 이미지(PRD-S4): 레지스트리의 원본 치수로 종횡비를 맞춘다.
+      const asset = getImageAsset(element.assetId);
+      const aspect = asset && asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 1;
+      return aspect >= 1
+        ? { width: ILLUSTRATION_SIZE, height: ILLUSTRATION_SIZE / aspect }
+        : { width: ILLUSTRATION_SIZE * aspect, height: ILLUSTRATION_SIZE };
+    }
     case 'drawing': {
-      // Must 미사용 — 안전한 기본 박스.
+      // 손그림(PRD-S1, 별 Phase) — 안전한 기본 박스.
       return { width: ILLUSTRATION_SIZE, height: ILLUSTRATION_SIZE };
     }
   }

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@candle/shared": "workspace:*",
+    "@fastify/multipart": "^9.0.1",
     "@supabase/supabase-js": "^2.47.10",
     "fastify": "^5.2.0"
   },

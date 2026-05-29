@@ -1,9 +1,11 @@
 // editor2d/panels/LibraryPanel — 요소 라이브러리(View). 3개 카테고리 자산을
 // 나열하고 클릭 시 store.addElement → 선택. 배치 기본 좌표(옆면 중앙)는
 // shared/geometry(getNet)로 계산한다. 로직·상태는 store가 보유.
+import { useRef, useState } from 'react';
 import { getNet } from '@candle/shared/geometry';
 import type { ElementInput } from '../../document/store';
 import { useDesignStore } from '../../document/store';
+import { uploadAsset } from '../../api';
 import { Panel, Button, palette } from '../../ui';
 import {
   illustrations,
@@ -11,7 +13,12 @@ import {
   letteringFonts,
   PipingPreview,
   illustrationDataUri,
+  fileToImageAsset,
+  registerImageAsset,
 } from '../elements';
+
+/** 업로드 허용 타입(PRD-S4). input accept·1차 안내용 — 최종 검증은 서버. */
+const IMAGE_ACCEPT = 'image/png,image/jpeg,image/svg+xml';
 
 const DEFAULT_LETTER_COLOR = '#5a3b3b';
 /** 파이핑 기본색 — 크림 위·미리보기에서 잘 보이는 파스텔 핑크. */
@@ -45,6 +52,29 @@ export function LibraryPanel() {
       transform: { x: center.x, y: center.y, scale: 1, rotation: 0 },
     } as ElementInput);
     select(id);
+  };
+
+  // 이미지 업로드(PRD-S4): 서버 업로드 + 로컬에서 즉시 data URI 해석을 병행해
+  // 왕복 없이 바로 렌더한다. 검증(타입·크기)은 서버 경계가 최종 책임.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 재선택 허용
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const [asset, resolved] = await Promise.all([uploadAsset(file), fileToImageAsset(file)]);
+      registerImageAsset(asset.id, resolved);
+      add({ type: 'image', assetId: asset.id });
+    } catch (err) {
+      setUploadError((err as Error).message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const tileStyle = {
@@ -128,6 +158,32 @@ export function LibraryPanel() {
             );
           })}
         </div>
+      </div>
+
+      <div>
+        <p style={sectionLabel}>이미지</p>
+        <p style={{ fontSize: 12, color: palette.textMuted, margin: '0 0 6px' }}>
+          PNG·JPG·SVG, 최대 50MB.
+        </p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept={IMAGE_ACCEPT}
+          onChange={onFile}
+          style={{ display: 'none' }}
+        />
+        <Button
+          variant="primary"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+        >
+          {uploading ? '업로드 중…' : '+ 이미지 업로드'}
+        </Button>
+        {uploadError && (
+          <p style={{ fontSize: 12, color: '#c0392b', margin: '6px 0 0' }}>
+            {uploadError}
+          </p>
+        )}
       </div>
     </Panel>
   );

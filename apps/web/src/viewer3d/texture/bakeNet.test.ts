@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { getNet } from '@candle/shared/geometry';
 import type { Design } from '@candle/shared';
 import { buildNetSvg, netTextureSize, NET_PX_PER_CM, NET_MAX_PX } from './bakeNet';
+import { registerImageAsset } from '../../editor2d/elements';
 
 function baseDesign(overrides: Partial<Design> = {}): Design {
   return {
@@ -109,6 +110,27 @@ describe('buildNetSvg', () => {
     const a = buildNetSvg(baseDesign());
     const b = buildNetSvg(baseDesign());
     expect(a).toBe(b);
+  });
+
+  // PRD-S4: 업로드 이미지가 3D 굽기 입력(SVG)에 data URI로 포함되는지(동기화 회귀).
+  it('등록된 이미지 요소를 data URI <image>로 굽기 입력에 포함한다', () => {
+    const dataUri = 'data:image/png;base64,BAKEME';
+    registerImageAsset('bake-1', { dataUri, width: 100, height: 100 });
+    const svg = buildNetSvg(
+      baseDesign({
+        elements: [
+          {
+            id: 'img1',
+            type: 'image',
+            assetId: 'bake-1',
+            transform: { x: 12, y: 8, scale: 1, rotation: 0 },
+            zIndex: 0,
+          },
+        ],
+      }),
+    );
+    expect(svg).toContain('<image');
+    expect(svg).toContain(dataUri);
   });
 });
 
