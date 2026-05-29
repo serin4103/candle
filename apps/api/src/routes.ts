@@ -13,8 +13,8 @@ interface ViewTokenParams {
 /** 디자인 저장·공유 라우트를 등록한다. */
 export function registerDesignRoutes(app: FastifyInstance, service: DesignService): void {
   // 저장 → 편집/열람 토큰 발급
-  app.post('/designs', (req, reply) => {
-    const { design, shareLink } = service.create(req.body);
+  app.post('/designs', async (req, reply) => {
+    const { design, shareLink } = await service.create(req.body);
     return reply.code(201).send({ design, shareLink });
   });
 
@@ -24,18 +24,18 @@ export function registerDesignRoutes(app: FastifyInstance, service: DesignServic
   });
 
   // 열람용 로드(비로그인 읽기)
-  app.get<{ Params: ViewTokenParams }>('/designs/by-view/:viewToken', (req) => {
-    return { design: service.getByView(req.params.viewToken) };
+  app.get<{ Params: ViewTokenParams }>('/designs/by-view/:viewToken', async (req) => {
+    return { design: await service.getByView(req.params.viewToken) };
   });
 
   // 작성자 수정 저장
-  app.put<{ Params: TokenParams }>('/designs/by-edit/:editToken', (req) => {
-    return { design: service.updateByEdit(req.params.editToken, req.body) };
+  app.put<{ Params: TokenParams }>('/designs/by-edit/:editToken', async (req) => {
+    return { design: await service.updateByEdit(req.params.editToken, req.body) };
   });
 
   // 열람자의 복제(새 편집/열람 토큰 발급)
-  app.post<{ Params: ViewTokenParams }>('/designs/by-view/:viewToken/clone', (req, reply) => {
-    const { design, shareLink } = service.cloneByView(req.params.viewToken);
+  app.post<{ Params: ViewTokenParams }>('/designs/by-view/:viewToken/clone', async (req, reply) => {
+    const { design, shareLink } = await service.cloneByView(req.params.viewToken);
     return reply.code(201).send({ design, shareLink });
   });
 }

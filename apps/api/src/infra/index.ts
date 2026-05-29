@@ -4,3 +4,4 @@ export {
   type DesignRepository,
   type TokenRole,
 } from './repository';
+export { createSupabaseClient, createSupabaseRepository } from './supabase';
