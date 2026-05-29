@@ -37,10 +37,15 @@ export function cornerPoint(transform: Transform, size: Size, corner: Corner): P
   return applyForwardRotation(transform, { x: sx * hx, y: sy * hy });
 }
 
-/** 선택 핸들 배치 — 4코너 + 회전 핸들(전개도 좌표). */
+/**
+ * 선택 핸들 배치 — 4코너 + 회전 핸들(전개도 좌표).
+ * rotateOffset(cm)은 박스 위로 회전 핸들을 띄우는 거리 — 화면 일정 크기를 위해
+ * View가 렌더 스케일에 맞춰 넘긴다(기본값은 cm 고정).
+ */
 export function handlePositions(
   transform: Transform,
   size: Size,
+  rotateOffset: number = ROTATE_OFFSET,
 ): { corners: Record<Corner, Point>; rotate: Point } {
   const { hy } = halfExtents(size, transform.scale);
   const corners = {
@@ -49,7 +54,7 @@ export function handlePositions(
     se: cornerPoint(transform, size, 'se'),
     sw: cornerPoint(transform, size, 'sw'),
   };
-  const rotate = applyForwardRotation(transform, { x: 0, y: -hy - ROTATE_OFFSET });
+  const rotate = applyForwardRotation(transform, { x: 0, y: -hy - rotateOffset });
   return { corners, rotate };
 }
 

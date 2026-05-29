@@ -2,7 +2,7 @@
 // 전개도(옆면+윗면)와 요소를 그리고 선택 핸들을 표시하며, 포인터 이벤트를
 // tools(ViewModel)로 위임한다. 계산 금지: 좌표 변환은 SVG CTM, 히트테스트·
 // 제스처 수학은 tools/shared-geometry. store를 구독해 렌더만 한다.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getNet, runFromPoints } from '@candle/shared/geometry';
 import type { Point } from '@candle/shared/geometry';
 import { useDesignStore } from '../../document/store';
@@ -23,8 +23,11 @@ import {
 import { topOutlinePath } from './netPath';
 
 const PAD = 14;
-const HANDLE_R = 2.6; // 핸들 반지름(cm)
-const HANDLE_HIT = 4; // 핸들 히트 반경(cm)
+// 핸들은 화면 일정 크기(px)로 보이도록 렌더 스케일로 cm 변환해 그린다.
+const HANDLE_R_PX = 5; // 핸들 반지름(px)
+const HANDLE_HIT_PX = 11; // 핸들 히트 반경(px)
+const ROTATE_OFFSET_PX = 22; // 회전 핸들을 박스 위로 띄우는 거리(px)
+const STROKE_PX = 1.2; // 선택 외곽선·핸들 테두리 두께(px)
 
 interface ActiveGesture {
   gesture: Gesture;
@@ -51,6 +54,8 @@ export function NetEditor() {
   // 파이핑 드래그 진행 상태(시작점은 ref, 끝점은 미리보기 갱신용 state).
   const drawStartRef = useRef<Point | null>(null);
   const [drawEnd, setDrawEnd] = useState<Point | null>(null);
+  // 화면 px ÷ 전개도 cm 배율(핸들을 일정 화면 크기로 그리기 위함).
+  const [pxPerCm, setPxPerCm] = useState(1);
 
   // 키보드: Esc로 파이핑 모드 해제, Delete/Backspace로 선택 삭제(입력 중 제외).
   useEffect(() => {
@@ -77,6 +82,26 @@ export function NetEditor() {
   const viewW = net.bounds.width + PAD * 2;
   const viewH = net.bounds.height + PAD * 2;
 
+  // 렌더 스케일(px/cm) 측정 — getScreenCTM().a가 가로 배율. 리사이즈 시 재측정.
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const measure = () => {
+      const ctm = svg.getScreenCTM();
+      if (ctm && ctm.a > 0 && Number.isFinite(ctm.a)) setPxPerCm(ctm.a);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, [viewW, viewH]);
+
+  // px 핸들 치수를 cm로 환산(렌더 스케일 반영).
+  const handleR = HANDLE_R_PX / pxPerCm;
+  const handleHit = HANDLE_HIT_PX / pxPerCm;
+  const rotateOffset = ROTATE_OFFSET_PX / pxPerCm;
+  const strokeW = STROKE_PX / pxPerCm;
+
   // 화면(픽셀) → 전개도(SVG 사용자 단위=cm).
   const toNet = (clientX: number, clientY: number): Point | null => {
     const svg = svgRef.current;
@@ -90,11 +115,11 @@ export function NetEditor() {
   const pickHandle = (point: Point): 'rotate' | Corner | null => {
     if (!selected) return null;
     const size = elementLocalSize(selected);
-    const { corners, rotate } = handlePositions(selected.transform, size);
-    if (Math.hypot(point.x - rotate.x, point.y - rotate.y) <= HANDLE_HIT) return 'rotate';
+    const { corners, rotate } = handlePositions(selected.transform, size, rotateOffset);
+    if (Math.hypot(point.x - rotate.x, point.y - rotate.y) <= handleHit) return 'rotate';
     for (const c of CORNERS) {
       const hp = corners[c];
-      if (Math.hypot(point.x - hp.x, point.y - hp.y) <= HANDLE_HIT) return c;
+      if (Math.hypot(point.x - hp.x, point.y - hp.y) <= handleHit) return c;
     }
     return null;
   };
@@ -292,15 +317,32 @@ export function NetEditor() {
       )}
 
       {/* 선택 핸들 (파이핑 모드에선 숨김) */}
-      {selected && !pendingPiping && <SelectionOverlay element={selected} />}
+      {selected && !pendingPiping && (
+        <SelectionOverlay
+          element={selected}
+          handleR={handleR}
+          rotateOffset={rotateOffset}
+          strokeW={strokeW}
+        />
+      )}
     </svg>
   );
 }
 
-/** 선택 요소의 바운딩 박스·코너 핸들·회전 핸들(View 전용). */
-function SelectionOverlay({ element }: { element: Parameters<typeof ElementView>[0]['element'] }) {
+/** 선택 요소의 바운딩 박스·코너 핸들·회전 핸들(View 전용). 치수는 화면 px 기준(cm 환산). */
+function SelectionOverlay({
+  element,
+  handleR,
+  rotateOffset,
+  strokeW,
+}: {
+  element: Parameters<typeof ElementView>[0]['element'];
+  handleR: number;
+  rotateOffset: number;
+  strokeW: number;
+}) {
   const size = elementLocalSize(element);
-  const { corners, rotate } = handlePositions(element.transform, size);
+  const { corners, rotate } = handlePositions(element.transform, size, rotateOffset);
   const order: Corner[] = ['nw', 'ne', 'se', 'sw'];
   const polygon = order.map((c) => `${corners[c].x.toFixed(2)},${corners[c].y.toFixed(2)}`).join(' ');
   const topMid = {
@@ -314,8 +356,8 @@ function SelectionOverlay({ element }: { element: Parameters<typeof ElementView>
         points={polygon}
         fill="none"
         stroke={palette.primary}
-        strokeWidth={0.6}
-        strokeDasharray="2 1.5"
+        strokeWidth={strokeW}
+        strokeDasharray={`${handleR * 0.8} ${handleR * 0.6}`}
       />
       {/* 회전 핸들 연결선 + 핸들 */}
       <line
@@ -324,20 +366,27 @@ function SelectionOverlay({ element }: { element: Parameters<typeof ElementView>
         x2={rotate.x}
         y2={rotate.y}
         stroke={palette.primary}
-        strokeWidth={0.6}
+        strokeWidth={strokeW}
       />
-      <circle cx={rotate.x} cy={rotate.y} r={HANDLE_R} fill={palette.surface} stroke={palette.primaryDeep} strokeWidth={0.6} />
+      <circle
+        cx={rotate.x}
+        cy={rotate.y}
+        r={handleR}
+        fill={palette.surface}
+        stroke={palette.primaryDeep}
+        strokeWidth={strokeW}
+      />
       {/* 코너 스케일 핸들 */}
       {order.map((c) => (
         <rect
           key={c}
-          x={corners[c].x - HANDLE_R}
-          y={corners[c].y - HANDLE_R}
-          width={HANDLE_R * 2}
-          height={HANDLE_R * 2}
+          x={corners[c].x - handleR}
+          y={corners[c].y - handleR}
+          width={handleR * 2}
+          height={handleR * 2}
           fill={palette.surface}
           stroke={palette.primaryDeep}
-          strokeWidth={0.6}
+          strokeWidth={strokeW}
         />
       ))}
     </g>
