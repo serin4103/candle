@@ -78,6 +78,52 @@ describe('buildNetSvg', () => {
     expect(svg).toContain('<circle');
   });
 
+  it('손그림(drawing) 요소를 polyline으로 굽는다(3D 반영, PRD-S1)', () => {
+    const svg = buildNetSvg(
+      baseDesign({
+        elements: [
+          {
+            id: 'dr1',
+            type: 'drawing',
+            points: [
+              { x: 4, y: 4 },
+              { x: 8, y: 6 },
+              { x: 12, y: 4 },
+            ],
+            color: '#22cc88',
+            width: 3,
+            transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+            zIndex: 0,
+          },
+        ],
+      }),
+    );
+    expect(svg).toContain('<polyline');
+    expect(svg).toContain('#22cc88');
+    expect(svg).toContain('4,4');
+    expect(svg).toContain('stroke-width="3"');
+  });
+
+  it('점 1개짜리 손그림은 원으로 굽는다', () => {
+    const svg = buildNetSvg(
+      baseDesign({
+        elements: [
+          {
+            id: 'dot',
+            type: 'drawing',
+            points: [{ x: 5, y: 5 }],
+            color: '#ff0000',
+            width: 4,
+            transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+            zIndex: 0,
+          },
+        ],
+      }),
+    );
+    expect(svg).toContain('<circle');
+    expect(svg).toContain('#ff0000');
+  });
+
   it('요소를 zIndex 오름차순으로 그린다(낮은 것이 먼저)', () => {
     const svg = buildNetSvg(
       baseDesign({

@@ -25,6 +25,9 @@ import {
   beginRotate,
   applyGesture,
   type Gesture,
+  appendStrokePoint,
+  pickStrokeAt,
+  type Strokelike,
 } from '../tools';
 import { topOutlinePath } from './netPath';
 
@@ -54,6 +57,9 @@ export function NetEditor() {
   const deleteElement = useDesignStore((s) => s.deleteElement);
   const pendingPiping = useDesignStore((s) => s.pendingPiping);
   const setPendingPiping = useDesignStore((s) => s.setPendingPiping);
+  const drawingTool = useDesignStore((s) => s.drawingTool);
+  const brush = useDesignStore((s) => s.brush);
+  const addDrawing = useDesignStore((s) => s.addDrawing);
   // 이미지 자산이 비동기로 해석되면(version) 요소 마크업을 다시 그린다(PRD-S4).
   const imageVersion = useImageAssetStore((s) => s.version);
 
@@ -62,6 +68,11 @@ export function NetEditor() {
   // 파이핑 드래그 진행 상태(시작점은 ref, 끝점은 미리보기 갱신용 state).
   const drawStartRef = useRef<Point | null>(null);
   const [drawEnd, setDrawEnd] = useState<Point | null>(null);
+  // 손그림(PRD-S1) 진행 상태: 펜 획 점열은 ref, 라이브 미리보기는 state로 재렌더.
+  const strokeRef = useRef<Point[]>([]);
+  const [strokePreview, setStrokePreview] = useState<Point[] | null>(null);
+  // 지우개 드래그 중 여부(드래그하며 닿는 획을 연속 삭제).
+  const erasingRef = useRef(false);
   // 화면 px ÷ 전개도 cm 배율(핸들을 일정 화면 크기로 그리기 위함).
   const [pxPerCm, setPxPerCm] = useState(1);
 
@@ -132,9 +143,36 @@ export function NetEditor() {
     return null;
   };
 
+  // 지우개: 점에 닿은 획(드로잉 요소) 하나를 삭제(획 단위, PRD-S1).
+  const eraseAt = (point: Point) => {
+    const strokes: Strokelike[] = elements.flatMap((el) =>
+      el.type === 'drawing'
+        ? [{ id: el.id, points: el.points, width: el.width, zIndex: el.zIndex }]
+        : [],
+    );
+    const id = pickStrokeAt(strokes, point);
+    if (id) deleteElement(id);
+  };
+
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const point = toNet(e.clientX, e.clientY);
     if (!point) return;
+
+    // 0a) 손그림 펜: 드래그로 1획을 그린다(전개도 좌표 점열로 수집).
+    if (drawingTool === 'pen') {
+      strokeRef.current = [point];
+      setStrokePreview([point]);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // 0b) 지우개: 누른 즉시 + 드래그하며 닿는 획을 삭제한다.
+    if (drawingTool === 'eraser') {
+      erasingRef.current = true;
+      eraseAt(point);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
 
     // 0) 파이핑 그리기 모드: 드래그로 런을 그린다(선택/이동 대신).
     if (pendingPiping) {
@@ -159,13 +197,16 @@ export function NetEditor() {
       }
     }
 
-    // 2) 요소 본체 picking(위에 있는 것 우선).
-    const pickables: Pickable[] = elements.map((el) => ({
-      id: el.id,
-      transform: el.transform,
-      size: elementLocalSize(el),
-      zIndex: el.zIndex,
-    }));
+    // 2) 요소 본체 picking(위에 있는 것 우선). 손그림은 선택 대상 제외(획 단위
+    //    편집은 펜/지우개 도구로만 — S1 범위).
+    const pickables: Pickable[] = elements
+      .filter((el) => el.type !== 'drawing')
+      .map((el) => ({
+        id: el.id,
+        transform: el.transform,
+        size: elementLocalSize(el),
+        zIndex: el.zIndex,
+      }));
     const hitId = pickTopElement(pickables, point);
     if (hitId) {
       select(hitId);
@@ -180,6 +221,24 @@ export function NetEditor() {
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    // 펜 드래그 중: 점을 솎아 모으고 미리보기 갱신.
+    if (drawingTool === 'pen' && strokeRef.current.length > 0) {
+      const point = toNet(e.clientX, e.clientY);
+      if (point) {
+        const next = appendStrokePoint(strokeRef.current, point);
+        if (next !== strokeRef.current) {
+          strokeRef.current = next;
+          setStrokePreview(next);
+        }
+      }
+      return;
+    }
+    // 지우개 드래그 중: 닿는 획을 연속 삭제.
+    if (erasingRef.current) {
+      const point = toNet(e.clientX, e.clientY);
+      if (point) eraseAt(point);
+      return;
+    }
     // 파이핑 드래그 중: 끝점만 갱신(미리보기 재렌더).
     if (drawStartRef.current) {
       const point = toNet(e.clientX, e.clientY);
@@ -198,7 +257,27 @@ export function NetEditor() {
     }
   };
 
+  const releaseCapture = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    // 펜 드래그 종료 → 모은 점열로 손그림 1획 생성(1획=1요소).
+    if (drawingTool === 'pen' && strokeRef.current.length > 0) {
+      addDrawing(strokeRef.current, brush.color, brush.width);
+      strokeRef.current = [];
+      setStrokePreview(null);
+      releaseCapture(e);
+      return;
+    }
+    // 지우개 드래그 종료.
+    if (erasingRef.current) {
+      erasingRef.current = false;
+      releaseCapture(e);
+      return;
+    }
     // 파이핑 드래그 종료 → 런 길이만큼의 파이핑 요소 생성.
     const start = drawStartRef.current;
     if (start && pendingPiping) {
@@ -231,6 +310,9 @@ export function NetEditor() {
     drawStartRef.current = null;
     setDrawEnd(null);
     activeRef.current = null;
+    strokeRef.current = [];
+    setStrokePreview(null);
+    erasingRef.current = false;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -259,12 +341,18 @@ export function NetEditor() {
       data-element-count={elements.length}
       data-image-version={imageVersion}
       data-piping-mode={pendingPiping ? pendingPiping.variant : undefined}
+      data-drawing-tool={drawingTool ?? undefined}
       style={{
         width: '100%',
         height: '100%',
         maxHeight: 760,
         touchAction: 'none',
-        cursor: pendingPiping ? 'crosshair' : 'default',
+        cursor:
+          pendingPiping || drawingTool === 'pen'
+            ? 'crosshair'
+            : drawingTool === 'eraser'
+              ? 'cell'
+              : 'default',
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -325,8 +413,21 @@ export function NetEditor() {
         </g>
       )}
 
-      {/* 선택 핸들 (파이핑 모드에선 숨김) */}
-      {selected && !pendingPiping && (
+      {/* 손그림 펜 라이브 미리보기(그리는 중) */}
+      {strokePreview && strokePreview.length > 0 && (
+        <polyline
+          points={strokePreview.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ')}
+          fill="none"
+          stroke={brush.color}
+          strokeWidth={brush.width}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pointerEvents="none"
+        />
+      )}
+
+      {/* 선택 핸들 (파이핑·손그림 모드에선 숨김) */}
+      {selected && !pendingPiping && !drawingTool && (
         <SelectionOverlay
           element={selected}
           handleR={handleR}

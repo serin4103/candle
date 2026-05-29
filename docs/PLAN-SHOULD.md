@@ -119,11 +119,11 @@ POST /assets            (multipart/form-data: file)
 - 연속 드래그 1획은 store 커밋 1건으로(미래 C2 undo 대비; 지금은 단순 커밋이라도 1획=1요소 유지).
 
 **완료 기준 (PRD-S1 수용 기준)**:
-- [ ] 전개도 위에 펜으로 자유 손그림을 그릴 수 있다. *(드래그 → `drawing` 요소 생성·렌더 런타임 확인)*
-- [ ] 브러시 굵기·색상을 바꿀 수 있고 결과에 반영된다. *(width/color 변경 후 획 비교 확인)*
-- [ ] 획 단위 지우개로 한 획을 지울 수 있다. *(지우개로 특정 획만 제거 런타임 확인)*
-- [ ] 그린 손그림이 3D 전환 시 텍스처에 반영된다. *(굽기 시각 확인)*
-- [ ] 저장 좌표가 전개도 좌표계다(픽셀 인라인 저장 0건 — grep/코드 점검).
+- [x] 전개도 위에 펜으로 자유 손그림을 그릴 수 있다. *(런타임: 펜 모드(data-drawing-tool=pen·cursor crosshair)에서 포인터 드래그 → `drawing` 요소 1건 생성·SVG polyline 렌더 확인. `addDrawing` 단위 테스트.)*
+- [x] 브러시 굵기·색상을 바꿀 수 있고 결과에 반영된다. *(DrawingPanel 슬라이더·ColorPicker→`setBrush`; 런타임 polyline stroke=#5a3b3b·stroke-width=2 반영. `setBrush` 부분 갱신 단위 테스트.)*
+- [x] 획 단위 지우개로 한 획을 지울 수 있다. *(런타임: 지우개 모드(cursor cell) 획 정점 클릭 → 해당 획만 삭제(count 1→0). `pickStrokeAt`/`strokeHit`/`pointToSegmentDistance` 단위 테스트.)*
+- [x] 그린 손그림이 3D 전환 시 텍스처에 반영된다. *(`bakeNet` 단위 테스트: 굽기 SVG에 손그림 polyline+색·두께, 점1개는 circle. 굽기 입력=2D와 동일 `elementGroupMarkup` 단일 출처.)*
+- [x] 저장 좌표가 전개도 좌표계다(픽셀 인라인 저장 0건 — grep/코드 점검). *(grep: `tools/drawing.ts`·`store`에 clientX/Y 직접 저장 0건. 점은 canvas `toNet`(SVG CTM)으로 전개도 cm 변환 후 저장 — 런타임 points가 cm 좌표.)*
 
 ---
 

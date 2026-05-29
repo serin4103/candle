@@ -167,8 +167,16 @@ export function elementLocalSize(element: Element): { width: number; height: num
         : { width: ILLUSTRATION_SIZE * aspect, height: ILLUSTRATION_SIZE };
     }
     case 'drawing': {
-      // 손그림(PRD-S1, 별 Phase) — 안전한 기본 박스.
-      return { width: ILLUSTRATION_SIZE, height: ILLUSTRATION_SIZE };
+      // 손그림(PRD-S1) — 점열의 경계 상자 치수(스케일 1). 점이 비면 0.
+      if (element.points.length === 0) return { width: 0, height: 0 };
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of element.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { width: maxX - minX, height: maxY - minY };
     }
   }
 }
