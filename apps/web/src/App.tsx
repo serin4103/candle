@@ -1,8 +1,9 @@
-// App — 앱 셸(Phase 2). 상단 브랜드바 + 좌측 cake 컨트롤 + 캔버스 전개도 프리뷰.
-// 일러스트/레터링/파이핑(Phase 3), 3D 토글(Phase 4), 공유(Phase 5)는 이후 채운다.
+// App — 앱 셸(Phase 3). 상단 브랜드바 + 좌측(케이크·요소) + 중앙 전개도 편집기
+// + 우측 속성 패널. 3D 토글(Phase 4), 공유(Phase 5)는 이후 채운다.
 import { palette, fontStack, radius, shadow } from './ui';
 import { CakeControls } from './cake';
-import { NetPreview } from './editor2d/canvas';
+import { NetEditor } from './editor2d/canvas';
+import { LibraryPanel, PropertiesPanel } from './editor2d/panels';
 
 export function App() {
   return (
@@ -46,9 +47,20 @@ export function App() {
         </span>
       </header>
 
-      {/* 본문: 좌측 컨트롤 + 캔버스 */}
+      {/* 본문: 좌측(케이크·요소) + 중앙 편집기 + 우측 속성 */}
       <main style={{ display: 'flex', flex: 1, gap: 20, padding: 20, minHeight: 0 }}>
-        <CakeControls />
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            width: 260,
+            overflowY: 'auto',
+          }}
+        >
+          <CakeControls />
+          <LibraryPanel />
+        </div>
         <section
           style={{
             flex: 1,
@@ -60,8 +72,11 @@ export function App() {
             padding: 24,
           }}
         >
-          <NetPreview />
+          <NetEditor />
         </section>
+        <div style={{ width: 260, overflowY: 'auto' }}>
+          <PropertiesPanel />
+        </div>
       </main>
     </div>
   );

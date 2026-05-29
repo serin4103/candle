@@ -303,6 +303,20 @@ export function applyInverseRotation(transform: Transform, point: Point): Point 
   return { x: dx * c - dy * s, y: dx * s + dy * c };
 }
 
+/**
+ * 요소 중심 기준 로컬 오프셋을 전개도 좌표로 변환한다(`applyInverseRotation`의 역).
+ * local을 +rotation 만큼 회전한 뒤 transform 원점으로 평행이동한다.
+ * 선택 핸들 배치·대각 스케일 피벗 계산에 쓴다(M3, S2 대비).
+ */
+export function applyForwardRotation(transform: Transform, local: Point): Point {
+  const c = Math.cos(transform.rotation);
+  const s = Math.sin(transform.rotation);
+  return {
+    x: transform.x + local.x * c - local.y * s,
+    y: transform.y + local.x * s + local.y * c,
+  };
+}
+
 // ── 규격 변경 재계산 ────────────────────────────────────────────────
 
 /** 규격 변경 시 전개도·파생 치수를 재계산 (M4/S5 대비). */

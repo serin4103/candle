@@ -10,6 +10,7 @@ import {
   screenToNet,
   netToScreen,
   applyInverseRotation,
+  applyForwardRotation,
   recomputeForSpec,
   SIZE_BASE_DIAMETER_CM,
   SIZE_STEP_CM,
@@ -174,6 +175,26 @@ describe('applyInverseRotation', () => {
     );
     expect(local.x).toBeCloseTo(0, 9);
     expect(local.y).toBeCloseTo(-1, 9);
+  });
+});
+
+describe('applyForwardRotation', () => {
+  it('회전 0이면 원점 기준 평행이동만', () => {
+    const p = applyForwardRotation(
+      { x: 5, y: 5, scale: 1, rotation: 0 },
+      { x: 3, y: 4 },
+    );
+    expect(p.x).toBeCloseTo(8, 9);
+    expect(p.y).toBeCloseTo(9, 9);
+  });
+
+  it('applyInverseRotation의 역 — 왕복하면 원래 로컬 좌표', () => {
+    const t = { x: 12, y: -3, scale: 2, rotation: 0.7 };
+    const local = { x: 4, y: -2 };
+    const world = applyForwardRotation(t, local);
+    const back = applyInverseRotation(t, world);
+    expect(back.x).toBeCloseTo(local.x, 9);
+    expect(back.y).toBeCloseTo(local.y, 9);
   });
 });
 
