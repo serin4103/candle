@@ -10,7 +10,7 @@ import {
   type Element,
   type Shape,
 } from '@candle/shared';
-import type { Viewport } from '@candle/shared/geometry';
+import type { Point, Viewport } from '@candle/shared/geometry';
 import { createDefaultDesign } from './defaultDesign';
 
 /** id·zIndex 없이 추가할 요소 입력. zIndex는 생략 시 자동 부여. */
@@ -28,8 +28,20 @@ export type PipingPatch = Partial<Pick<Extract<Element, { type: 'piping' }>, 'co
 /** 일러스트 변경 가능한 필드(색상 교체). */
 export type IllustrationPatch = Partial<Pick<Extract<Element, { type: 'illustration' }>, 'colors'>>;
 
+/** 손그림 도구 모드 (PRD-S1). null이면 일반 편집. */
+export type DrawingTool = 'pen' | 'eraser' | null;
+
+/** 펜 브러시 설정 (PRD-S1). 색상과 굵기(전개도 cm). */
+export interface Brush {
+  color: string;
+  width: number;
+}
+
 /** 기본 뷰포트(원점·1배). */
 const DEFAULT_VIEWPORT: Viewport = { panX: 0, panY: 0, zoom: 1 };
+
+/** 기본 브러시 — 크림 위에서 잘 보이는 진한 갈색, 적당한 굵기(cm). */
+const DEFAULT_BRUSH: Brush = { color: '#5a3b3b', width: 2 };
 
 export interface DesignState {
   /** 현재 디자인 문서. */
@@ -43,6 +55,13 @@ export interface DesignState {
    * null이면 일반 편집 모드. (표현/도구 상태)
    */
   pendingPiping: { variant: string; color: string } | null;
+  /**
+   * 손그림 도구 모드 (PRD-S1). 'pen'이면 드래그가 획을 그리고, 'eraser'면 드래그가
+   * 닿은 획을 지운다. null이면 일반 편집. pendingPiping과 상호배타.
+   */
+  drawingTool: DrawingTool;
+  /** 펜 브러시(색상·굵기). */
+  brush: Brush;
 
   // ── 시트(케이크) ──
   setShape: (shape: Shape) => void;
@@ -64,12 +83,18 @@ export interface DesignState {
   updatePiping: (id: string, patch: PipingPatch) => void;
   /** 일러스트 색상 교체. */
   updateIllustration: (id: string, patch: IllustrationPatch) => void;
+  /** 손그림 1획 추가(PRD-S1). 점열은 전개도 절대 좌표, transform은 항등. 추가한 id 반환. */
+  addDrawing: (points: Point[], color: string, width: number) => string;
 
   // ── 표현 상태 ──
   select: (id: string | null) => void;
   setViewport: (viewport: Viewport) => void;
-  /** 파이핑 그리기 모드 설정/해제. */
+  /** 파이핑 그리기 모드 설정/해제(설정 시 손그림 모드 해제). */
   setPendingPiping: (pending: { variant: string; color: string } | null) => void;
+  /** 손그림 도구 모드 설정/해제(설정 시 파이핑 모드·선택 해제). */
+  setDrawingTool: (tool: DrawingTool) => void;
+  /** 브러시 일부 변경(색상·굵기). */
+  setBrush: (patch: Partial<Brush>) => void;
 
   // ── 문서 로드/스냅샷 ──
   /** 외부 디자인 문서를 검증 후 적재. */
@@ -97,6 +122,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   selectedId: null,
   viewport: { ...DEFAULT_VIEWPORT },
   pendingPiping: null,
+  drawingTool: null,
+  brush: { ...DEFAULT_BRUSH },
 
   setShape: (shape) =>
     set((s) => ({ design: { ...s.design, shape } })),
@@ -201,14 +228,35 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       },
     })),
 
+  addDrawing: (points, color, width) =>
+    get().addElement({
+      type: 'drawing',
+      points: points.map((p) => ({ x: p.x, y: p.y })),
+      color,
+      width,
+      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    }),
+
   select: (id) => set({ selectedId: id }),
 
   setViewport: (viewport) => set({ viewport }),
 
-  setPendingPiping: (pending) => set({ pendingPiping: pending }),
+  // 모드 상호배타: 파이핑을 켜면 손그림 모드를 끈다(끌 때는 손그림 상태 유지).
+  setPendingPiping: (pending) =>
+    set((s) => ({ pendingPiping: pending, drawingTool: pending ? null : s.drawingTool })),
+
+  // 모드 상호배타: 손그림을 켜면 파이핑·선택을 끈다.
+  setDrawingTool: (tool) =>
+    set((s) => ({
+      drawingTool: tool,
+      pendingPiping: tool ? null : s.pendingPiping,
+      selectedId: tool ? null : s.selectedId,
+    })),
+
+  setBrush: (patch) => set((s) => ({ brush: { ...s.brush, ...patch } })),
 
   loadDesign: (design) =>
-    set({ design: validateDesign(design), selectedId: null, pendingPiping: null }),
+    set({ design: validateDesign(design), selectedId: null, pendingPiping: null, drawingTool: null }),
 
   getDesignSnapshot: () => structuredClone(validateDesign(get().design)),
 }));

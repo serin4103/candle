@@ -78,6 +78,26 @@ export function pipingMarkup(variant: string, color: string, length: number): st
   return `<g fill="${fill}">${dots}</g>`;
 }
 
+/**
+ * 손그림 마크업 (PRD-S1) — 절대 전개도 좌표 점열을 잇는 polyline.
+ * DrawingElement.transform은 항등이라 inner=group이 같은 절대 좌표를 그린다.
+ * 점이 1개뿐이면 점(원)으로, 0개면 빈 마크업.
+ */
+function drawingMarkup(element: Extract<Element, { type: 'drawing' }>): string {
+  const { points, color, width } = element;
+  const stroke = escapeAttr(color);
+  if (points.length === 0) return '';
+  if (points.length === 1) {
+    const p = points[0]!;
+    return `<circle cx="${n(p.x)}" cy="${n(p.y)}" r="${n(width / 2)}" fill="${stroke}"/>`;
+  }
+  const pts = points.map((p) => `${n(p.x)},${n(p.y)}`).join(' ');
+  return (
+    `<polyline points="${pts}" fill="none" stroke="${stroke}"` +
+    ` stroke-width="${n(width)}" stroke-linecap="round" stroke-linejoin="round"/>`
+  );
+}
+
 /** 레터링 마크업 — 중심(0,0) 기준 텍스트. */
 function letteringMarkup(text: string, font: string, color: string): string {
   return (
@@ -114,8 +134,10 @@ export function elementInnerMarkup(element: Element): string {
       return pipingMarkup(element.variant, element.color, element.length);
     case 'illustration':
       return illustrationMarkup(element);
+    case 'drawing':
+      return drawingMarkup(element);
     default:
-      // image/drawing(Must 미사용)
+      // image(PRD-S4) — 별도 phase
       return placeholderMarkup();
   }
 }

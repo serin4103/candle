@@ -156,3 +156,56 @@ describe('loadDesign / getDesignSnapshot', () => {
     expect(useDesignStore.getState().design.elements[0]!.transform.x).toBe(0);
   });
 });
+
+describe('손그림 (PRD-S1)', () => {
+  beforeEach(() => {
+    useDesignStore.setState({ pendingPiping: null, drawingTool: null });
+  });
+
+  it('addDrawing은 전개도 좌표 점열·항등 transform의 drawing 요소를 추가한다', () => {
+    const points = [
+      { x: 10, y: 20 },
+      { x: 12, y: 25 },
+    ];
+    const id = useDesignStore.getState().addDrawing(points, '#123456', 3);
+    const el = useDesignStore.getState().design.elements.find((e) => e.id === id);
+    expect(el?.type).toBe('drawing');
+    if (el?.type === 'drawing') {
+      expect(el.points).toEqual(points); // 좌표 보존(전개도 좌표 그대로)
+      expect(el.color).toBe('#123456');
+      expect(el.width).toBe(3);
+      expect(el.transform).toEqual({ x: 0, y: 0, scale: 1, rotation: 0 });
+    }
+  });
+
+  it('추가한 손그림 1획을 deleteElement로 지운다(획 단위 지우개)', () => {
+    const id = useDesignStore.getState().addDrawing([{ x: 0, y: 0 }], '#000', 2);
+    expect(useDesignStore.getState().design.elements).toHaveLength(1);
+    useDesignStore.getState().deleteElement(id);
+    expect(useDesignStore.getState().design.elements).toHaveLength(0);
+  });
+
+  it('손그림 모드와 파이핑 모드는 상호배타다', () => {
+    const s = useDesignStore.getState();
+    s.setPendingPiping({ variant: 'dots', color: '#fff' });
+    s.setDrawingTool('pen');
+    expect(useDesignStore.getState().pendingPiping).toBeNull(); // 펜 켜면 파이핑 해제
+    expect(useDesignStore.getState().drawingTool).toBe('pen');
+
+    s.setPendingPiping({ variant: 'dots', color: '#fff' });
+    expect(useDesignStore.getState().drawingTool).toBeNull(); // 파이핑 켜면 펜 해제
+  });
+
+  it('setDrawingTool(tool)은 선택을 해제한다', () => {
+    useDesignStore.getState().select('something');
+    useDesignStore.getState().setDrawingTool('eraser');
+    expect(useDesignStore.getState().selectedId).toBeNull();
+  });
+
+  it('setBrush는 일부 필드만 갱신한다', () => {
+    useDesignStore.getState().setBrush({ width: 5 });
+    expect(useDesignStore.getState().brush.width).toBe(5);
+    useDesignStore.getState().setBrush({ color: '#abcdef' });
+    expect(useDesignStore.getState().brush).toMatchObject({ width: 5, color: '#abcdef' });
+  });
+});
