@@ -7,3 +7,4 @@ export {
   type PipingRunProps,
 } from './ElementView';
 export { PipingPreview, type PipingPreviewProps } from './PipingPreview';
+export { elementInnerMarkup, elementGroupMarkup, pipingMarkup } from './elementSvg';
