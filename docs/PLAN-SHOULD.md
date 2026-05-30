@@ -273,7 +273,7 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 | 스키마 보강 | `packages/shared/schema`의 `PipingElement`을 **경로 기반**으로 — `points: {x,y}[]`(min 1, 로컬 좌표)와 `width?: positive`(굵기, cm). `length` 제거. `variant`는 원형/스캘럽/물방울(문자열, 카탈로그가 단일 출처) — **`star-tip` 제거**. |
 | 카탈로그 갱신 | `editor2d/elements/catalog.ts`의 `pipingVariants`에서 `별깍지(star-tip)` 제거, **`물방울(teardrop)`** 추가. 굵기 상수 `DEFAULT_PIPING_WIDTH=1`·**`MIN=0.2`·`MAX=2`**. `elementLocalSize(piping)`은 경로 경계상자 + 굵기 여유로 계산. (`PIPING_HEIGHT`/`PIPING_UNIT`/`pipingCount`/`MIN_PIPING_LENGTH` 제거.) |
 | 경로 샘플링(geometry) | `packages/shared/geometry`에 `resamplePath(points, spacing)`(폴리라인을 고정 간격으로 샘플 → {x,y,angle}) + `centerOfPoints(points)`(경계상자 중심). 간격 고정이라 경로가 길어져도 모티프 크기 불변·개수만 증가. |
-| 마크업 갱신 | `editor2d/elements/elementSvg.ts` `pipingMarkup(variant, color, points, width)`: 경로를 `resamplePath(points, width)`로 샘플 → **원형**=반지름 width/2 원(간격=지름→빈틈 없음), **물방울**=크기 width 드롭을 접선 방향으로 정렬, **스캘럽**=경로를 따라가는 연속 stroke(두께 width). `star-tip` 제거(미상 variant는 원형 폴백). 2D View `PipingRun`·3D 베이커가 단일 출처 공유. |
+| 마크업 갱신 | `editor2d/elements/elementSvg.ts` `pipingMarkup(variant, color, points, width)`: 경로를 `resamplePath(points, width)`로 샘플 → **원형**=반지름 width/2 원(간격=지름→빈틈 없음), **물방울**=크기 width 드롭을 접선 방향으로 정렬, **스캘럽**=경로를 따라가는 **물결(사인파) 선**(파장·진폭 ∝ width, 접선 수직 방향 진동). `star-tip` 제거(미상 variant는 원형 폴백). 2D View `PipingRun`·3D 베이커가 단일 출처 공유. |
 | store 계약 | `document/store`: `PipingPatch`=`{ color?, width? }`(length 제거). `pendingPiping`=`{ variant, color, width }`, `pipingBrush`+`setPipingBrush`(그리기 모드 동기화). **`addPiping(points, variant, color, width)`** — 절대 경로를 경계상자 중심 기준 로컬 좌표로 바꿔 `transform`에 중심을 둔다(이동·스케일·회전이 transform으로 동작). |
 | 독립 파이핑 패널 | `editor2d/panels/PipingPanel.tsx` 신설(`DrawingPanel` 패턴): 모양 선택 + **굵기 슬라이더(0.2~2.0, step 0.1)** + **색상 피커** → `setPendingPiping`/`setPipingBrush`. **`LibraryPanel`에서 파이핑 섹션 제거.** |
 | 캔버스 입력·미리보기 | `editor2d/canvas/NetEditor.tsx`: 파이핑 모드에서 펜처럼 곡선 점열을 모아(`appendStrokePoint`) 라이브 미리보기(경로 모티프) → pointerup에 `addPiping`. 파이핑 전용 핸들·길이 제스처 제거(코너+회전만). |
@@ -281,7 +281,7 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 | 3D 숨김 연동(Phase 4) | 분리한 **파이핑 추가 패널**도 3D 뷰에서 숨김 대상에 포함(`App` 셸 `view==='net'` 게이트). |
 
 ### 7.1 굵기·크기 계약
-- `width`는 전개도(cm) 기준 파이핑 **굵기**(0.2~2.0). 원형·물방울은 모티프 지름, 스캘럽은 stroke-width.
+- `width`는 전개도(cm) 기준 파이핑 **굵기**(0.2~2.0). 원형·물방울은 모티프 지름, 스캘럽은 물결의 파장·진폭(선 두께는 width에 비례한 얇은 값).
 - 모티프 **간격 = width 고정**, **크기 = width 고정**. 경로 길이에 따라 `resamplePath`가 찍는 **개수만** 변한다 → 드래그 중 크기 펄럭임 없음. 원형·물방울은 간격=지름이라 서로 접해 빈틈이 없다.
 - 기본값·범위는 카탈로그 상수(`DEFAULT/MIN/MAX_PIPING_WIDTH`)에 단일 정의.
 

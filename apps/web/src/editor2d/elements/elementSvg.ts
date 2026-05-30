@@ -64,13 +64,25 @@ export function pipingMarkup(
   const fill = escapeAttr(color);
 
   if (variant === 'scallop') {
-    // 경로를 따라가는 연속 라인(둥근 캡). 점 1개면 원.
+    // 물결(사인파) 선 — 경로를 따라가되 접선의 수직 방향으로 사인 진동을 준다.
+    // 파장·진폭은 굵기(width)에 비례해 굵기 슬라이더가 물결 크기를 정한다.
     if (points.length === 1) {
       const p = points[0]!;
       return `<circle cx="${n(p.x)}" cy="${n(p.y)}" r="${n(width / 2)}" fill="${fill}"/>`;
     }
-    const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${n(p.x)} ${n(p.y)}`).join(' ');
-    return `<path d="${d}" fill="none" stroke="${fill}" stroke-width="${n(width)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const lambda = Math.max(0.1, width) * 1.6; // 한 물결의 길이(cm)
+    const amp = Math.max(0.05, width) * 0.5; // 진폭(중심선 기준)
+    const step = lambda / 12; // 매끄러운 곡선을 위한 샘플 간격
+    const fine = resamplePath(points, step);
+    const wave = fine.map((s, i) => {
+      const d = i * step;
+      const off = amp * Math.sin((2 * Math.PI * d) / lambda);
+      // 접선의 좌측 법선(−sin, cos)으로 오프셋.
+      return { x: s.x - Math.sin(s.angle) * off, y: s.y + Math.cos(s.angle) * off };
+    });
+    const path = wave.map((p, i) => `${i === 0 ? 'M' : 'L'} ${n(p.x)} ${n(p.y)}`).join(' ');
+    const strokeW = Math.max(0.06, width * 0.22);
+    return `<path d="${path}" fill="none" stroke="${fill}" stroke-width="${n(strokeW)}" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
 
   const samples = resamplePath(points, width);

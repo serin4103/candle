@@ -44,11 +44,17 @@ describe('pipingMarkup — 곡선 경로 파이핑', () => {
     expect(svg).toContain('rotate('); // 접선 방향 정렬
   });
 
-  it('스캘럽은 경로를 따라가는 연속 라인(stroke)이다', () => {
+  it('스캘럽은 경로를 따라가는 물결(사인파) 선이다', () => {
     const svg = pipingMarkup('scallop', '#abcdef', line(20), 1.5);
     expect(svg).toContain('<path');
+    expect(svg).toContain('fill="none"');
     expect(svg).toContain('stroke="#abcdef"');
-    expect(svg).toContain('stroke-width="1.50"');
+    // 직선이 아니라 다수의 점을 잇는 물결 — L 명령이 여러 개.
+    const ls = svg.match(/L /g) ?? [];
+    expect(ls.length).toBeGreaterThan(5);
+    // 중심선(y=0)을 벗어나는 진동이 있다(진폭 > 0).
+    const ys = [...svg.matchAll(/[ML] -?[\d.]+ (-?[\d.]+)/g)].map((m) => Math.abs(Number(m[1])));
+    expect(Math.max(...ys)).toBeGreaterThan(0.2);
   });
 
   it('미상 variant는 원형으로 폴백한다(옛 star-tip 안전)', () => {
