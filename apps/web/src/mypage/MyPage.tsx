@@ -3,7 +3,7 @@
 // 인증은 auth 세션에 위임 — 소유권 판단은 백엔드가 한다.
 import { useEffect, useState } from 'react';
 import type { Design } from '@candle/shared';
-import { listMyDesigns } from '../api';
+import { listMyDesigns, assetRawSrc } from '../api';
 import { readCachedDesigns } from './prefetch';
 import { designUrl, navigate } from '../share';
 import type { AuthSession } from '../auth';
@@ -15,7 +15,7 @@ const SHAPE_LABEL: Record<Design['shape'], string> = {
   heart: '하트',
 };
 
-/** 저장 디자인 한 장 — 크림색 미리보기 + 모양·요소 수. 클릭 시 편집으로 이동. */
+/** 저장 디자인 한 장 — 윗면 썸네일(없으면 크림색) + 모양·요소 수. 클릭 시 편집으로 이동. */
 function DesignCard({ design }: { design: Design }) {
   return (
     <button
@@ -34,7 +34,16 @@ function DesignCard({ design }: { design: Design }) {
         flexDirection: 'column',
       }}
     >
-      <div style={{ height: 110, background: design.creamColor }} />
+      {design.thumbnailAssetId ? (
+        // 윗면 썸네일(저장 시 구운 PNG). 크림색을 배경에 깔아 투명 모서리를 메운다.
+        <img
+          src={assetRawSrc(design.thumbnailAssetId)}
+          alt={`${SHAPE_LABEL[design.shape]} 케이크 윗면`}
+          style={{ height: 110, width: '100%', objectFit: 'contain', background: design.creamColor }}
+        />
+      ) : (
+        <div style={{ height: 110, background: design.creamColor }} />
+      )}
       <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         <strong style={{ fontSize: 14, color: palette.text }}>
           {SHAPE_LABEL[design.shape]} 케이크

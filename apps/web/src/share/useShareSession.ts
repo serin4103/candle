@@ -6,13 +6,30 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Design, ShareLink } from '@candle/shared';
 import { useDesignStore } from '../document/store';
-import { saveDesign, loadById, loadByView, updateById } from '../api';
+import { saveDesign, loadById, loadByView, updateById, uploadAsset } from '../api';
+import { buildTopThumbnail } from '../viewer3d/texture';
 import { parseRoute, designUrl, replaceUrl, type ShareMode } from './route';
 
 type Status = 'loading' | 'idle' | 'saving' | 'error';
 
 /** 복제 핸드오프 키 — 복제 시 디자인을 담아 두고, 새 탭의 '신규' 진입이 읽어 적재. */
 const CLONE_KEY = 'candle:clone';
+
+/**
+ * 저장 직전 케이크 윗면을 PNG로 구워 오브젝트 스토리지에 올리고, 그 자산 id를
+ * 디자인에 실어 돌려준다(마이페이지 썸네일, PRD-S6 보강). **베스트에포트** —
+ * 굽기/업로드가 실패해도 저장은 막지 않는다(썸네일 없이 진행).
+ */
+async function withTopThumbnail(design: Design): Promise<Design> {
+  try {
+    const blob = await buildTopThumbnail(design);
+    const file = new File([blob], `${design.id || 'thumb'}.png`, { type: 'image/png' });
+    const asset = await uploadAsset(file);
+    return { ...design, thumbnailAssetId: asset.id };
+  } catch {
+    return design;
+  }
+}
 
 /** 새 탭이 마운트 시 1회 읽어 가는 복제 디자인. 읽으면 즉시 비운다. */
 function takeClonePayload(): Design | null {
@@ -102,7 +119,7 @@ export function useShareSession(authReady: boolean): ShareSession {
     setStatus('saving');
     setError(null);
     try {
-      const result = await saveDesign(getDesignSnapshot());
+      const result = await saveDesign(await withTopThumbnail(getDesignSnapshot()));
       // 서버가 부여한 id를 store에 동기화하고 화면을 /d/:id로 승격한다.
       loadDesign(result.design);
       setShareLink(result.shareLink);
@@ -121,7 +138,7 @@ export function useShareSession(authReady: boolean): ShareSession {
     setStatus('saving');
     setError(null);
     try {
-      await updateById(designId, getDesignSnapshot());
+      await updateById(designId, await withTopThumbnail(getDesignSnapshot()));
       setStatus('idle');
     } catch (e) {
       setError((e as Error).message);

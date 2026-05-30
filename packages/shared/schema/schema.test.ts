@@ -33,6 +33,12 @@ describe('validateDesign', () => {
       validateDesign({ ...validDesign, spec: { size: 1, height: 7, layers: 1.5 } }),
     ).toThrow();
   });
+
+  it('thumbnailAssetId는 선택 — 없어도 통과하고 있으면 보존한다(PRD-S6 썸네일)', () => {
+    expect(validateDesign(validDesign).thumbnailAssetId).toBeUndefined();
+    const withThumb = { ...validDesign, thumbnailAssetId: 'asset-123' };
+    expect(validateDesign(withThumb).thumbnailAssetId).toBe('asset-123');
+  });
 });
 
 describe('validateElement', () => {

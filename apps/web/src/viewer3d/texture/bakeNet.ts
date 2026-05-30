@@ -24,15 +24,12 @@ function escapeAttr(s: string): string {
 }
 
 /**
- * 디자인을 전개도 SVG 문자열로 만든다(순수). viewBox는 전개도 bounds 그대로 —
- * 즉 SVG 픽셀(0..bounds)이 곧 UV 정규화 기준이 된다(구운-전개도 규약과 일치).
- * 윗면(단면 외곽선)과 옆면(둘레×높이)을 크림색으로 칠하고, 요소를 zIndex 순으로 얹는다.
+ * 전개도 내부 마크업(순수) — 윗면(단면 외곽선)·옆면(둘레×높이) 크림 채움 + 요소를
+ * zIndex 순으로 얹는다. `<svg>` 래퍼는 호출부가 viewBox와 함께 감싼다. 전개도 굽기와
+ * 윗면 썸네일이 이 단일 출처를 공유한다(중복 구현 금지 — CLAUDE.md).
  */
-export function buildNetSvg(design: Design): string {
-  const net = getNet(design.shape, design.spec);
-  const { width: w, height: h } = net.bounds;
+export function netInnerMarkup(design: Design, net: Net): string {
   const cream = escapeAttr(design.creamColor);
-
   const topPath = topOutlinePath(orientedTopCrossSection(net), net.top.x, net.top.y);
   const elements = [...design.elements]
     .sort((a, b) => a.zIndex - b.zIndex)
@@ -40,11 +37,23 @@ export function buildNetSvg(design: Design): string {
     .join('');
 
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w.toFixed(2)} ${h.toFixed(2)}">` +
     `<path d="${topPath}" fill="${cream}"/>` +
     `<rect x="${net.side.x.toFixed(2)}" y="${net.side.y.toFixed(2)}"` +
     ` width="${net.side.width.toFixed(2)}" height="${net.side.height.toFixed(2)}" fill="${cream}"/>` +
-    elements +
+    elements
+  );
+}
+
+/**
+ * 디자인을 전개도 SVG 문자열로 만든다(순수). viewBox는 전개도 bounds 그대로 —
+ * 즉 SVG 픽셀(0..bounds)이 곧 UV 정규화 기준이 된다(구운-전개도 규약과 일치).
+ */
+export function buildNetSvg(design: Design): string {
+  const net = getNet(design.shape, design.spec);
+  const { width: w, height: h } = net.bounds;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w.toFixed(2)} ${h.toFixed(2)}">` +
+    netInnerMarkup(design, net) +
     `</svg>`
   );
 }

@@ -117,6 +117,12 @@ export const Design = z.object({
   spec: Spec,
   elements: z.array(Element),
   decorations3d: z.array(Decoration3D),
+  /**
+   * 마이페이지 썸네일용 윗면 이미지 자산 id(PRD-S6 보강, 선택).
+   * 저장 시 케이크 윗면을 PNG로 구워 오브젝트 스토리지(`/assets`)에 올리고 그 id만
+   * 둔다 — base64를 doc에 인라인하지 않는다(비대 방지). 렌더는 `assetRawSrc(id)`.
+   */
+  thumbnailAssetId: z.string().optional(),
 });
 export type Design = z.infer<typeof Design>;
 

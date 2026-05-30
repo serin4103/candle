@@ -255,6 +255,51 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 
 ---
 
+## Phase 7 — PRD-S6 보강: 마이페이지 썸네일 (저장 시 케이크 윗면 이미지 생성)
+
+> **PRD 근거**: PRD-S6 마이페이지의 "저장 디자인 목록(**썸네일**/이름/수정일)"(6.4)을 채우는 보강. 별도 기능 ID는 두지 않고 **PRD-S6의 일부**로 다룬다. 현재 마이페이지 카드는 `creamColor` 단색만 보여준다([MyPage.tsx:19](../apps/web/src/mypage/MyPage.tsx#L19)).
+
+**목표**: 저장 버튼을 누르면 **케이크 윗면**을 작은 이미지(PNG)로 캡처해 오브젝트 스토리지에 올리고, 그 URL을 디자인에 귀속해 마이페이지 목록 카드에 **윗면 썸네일**로 보여준다.
+**의존**: Phase 6(PRD-S6 — 로그인·소유권 저장·마이페이지)가 전제. 저장이 로그인 필요이므로 썸네일 생성도 로그인 저장 흐름 안에서만 일어난다. 윗면 렌더는 Phase 1~3(규격·이미지·손그림)이 모두 전개도에 반영되므로 그 위에서 정확해진다.
+
+### 7.0 설계 결정 (확정)
+- **캡처 소스 = 전개도 윗면(top) 영역 crop**: 별도 3D 스크린샷이 아니라 기존 [`bakeNet`](../apps/web/src/viewer3d/texture/bakeNet.ts)/[`getNet`](../packages/shared/geometry/index.ts)의 **`top` rect**만 잘라 굽는다. 2D 디자인(요소·손그림·이미지)이 결정론적으로 반영되고 가볍다. **한계**: 3D 데코(`decorations3d`)는 텍스처가 아니라 3D 오브젝트라 윗면 썸네일에 포함되지 않는다(의도된 트레이드오프 — 문서에 명시).
+- **저장 위치 = 오브젝트 스토리지 + doc의 자산 참조**: 기존 `assets` 스토리지에 작은 PNG를 올리고, 받은 **`Asset.id`만** `Design.thumbnailAssetId`(doc 필드)로 둔다. **`doc`에 base64를 인라인하지 않는다**(짧은 id 문자열이라 비대 없음). *(정제: 코드 정독 후 별도 `thumbnail_url` DB 컬럼·마이그레이션 대신 doc 필드를 택했다 — `designs.doc`는 이미 저장/로드/목록/복제에 그대로 왕복하므로 **백엔드 변경 0**, 단일-디자인-문서 원칙과도 일치. 렌더는 `assetRawSrc(id)`.)*
+- **생성 시점 = 저장 직전 프론트**: `save()` 시점에 브라우저 캔버스로 윗면을 굽고 업로드한 뒤, 그 URL을 저장 요청에 실어 보낸다. 서버 렌더 환경(node-canvas 등) 불필요. 매 저장(신규·수정)마다 갱신.
+
+### 7.1 프론트: 윗면 썸네일 생성 (`viewer3d/texture` 재사용)
+| 작업 | 산출물 |
+|---|---|
+| 윗면 썸네일 빌더 | `viewer3d/texture`에 `buildTopThumbnail(design, size=256): Promise<Blob>`. 기존 `getNet().top` rect를 기준으로 **윗면 영역만** 굽는다. 최대 재사용: 전체 net을 `rasterizeNetSvg`로 구운 뒤 `top` rect를 source-crop해 `size×size` 캔버스에 `drawImage` → `toBlob('image/png')`. (좌표·스케일은 전부 `geometry`의 `top`/`bounds`에서 — 인라인 좌표 수학 금지.) |
+| 업로드 | 기존 [`uploadAsset`](../apps/web/src/api/client.ts#L87)를 그대로 재사용해 PNG Blob을 `File`로 올리고 `Asset.url` 획득. (전용 엔드포인트 신설 없이 `assets` 인프라 재사용.) |
+
+### 7.2 저장 흐름 배선 (`share`)
+| 작업 | 산출물 |
+|---|---|
+| save·update 훅 | [`useShareSession`](../apps/web/src/share/useShareSession.ts): 저장 직전 `withTopThumbnail(snapshot)` — `buildTopThumbnail` → `uploadAsset(File)` → `{...design, thumbnailAssetId: asset.id}`. **베스트에포트**: 생성/업로드 실패 시 `try/catch`로 원본 디자인을 그대로 반환(썸네일 없이 저장 진행). `save`·`update` 둘 다 적용. |
+| API 클라이언트 | 변경 없음 — `thumbnailAssetId`는 `Design` 필드라 기존 `saveDesign`/`updateById`/`listMyDesigns`가 그대로 왕복한다. `uploadAsset`도 그대로 재사용. |
+
+### 7.3 영속화 (백엔드 변경 없음)
+| 작업 | 산출물 |
+|---|---|
+| 스키마 | [`Design`](../packages/shared/schema/index.ts)에 `thumbnailAssetId: z.string().optional()` 1줄 추가. DB 마이그레이션·라우트·저장소·서비스 **변경 없음** — `designs.doc`(JSONB)가 이미 저장/로드/목록/복제에 그대로 왕복한다([repository.ts](../apps/api/src/infra/repository.ts)). |
+
+### 7.4 프론트: 마이페이지 카드 표시 (`mypage`)
+| 작업 | 산출물 |
+|---|---|
+| 썸네일 렌더 | [`MyPage` `DesignCard`](../apps/web/src/mypage/MyPage.tsx#L19): `design.thumbnailAssetId`가 있으면 `<img src={assetRawSrc(id)}>`(윗면, `objectFit:contain`+크림 배경), 없으면 기존 `creamColor` 단색 폴백 유지(구 디자인·생성 실패 호환). |
+
+**완료 기준 (PRD-S6 썸네일 보강)**:
+- [ ] 저장 시 케이크 **윗면**이 작은 PNG로 생성돼 스토리지에 업로드된다. *(코드·정적: `buildTopThumbnail`(canvas→PNG `toBlob`)+`uploadAsset` 배선 typecheck/build 통과, 윗면 SVG 빌더 단위 테스트. **런타임 PNG 인코딩+네트워크 업로드는 수동**(로그인 필요) — Phase 6 동일 상황.)*
+- [x] `thumbnailAssetId`가 doc에 저장되고 목록·로드에 포함된다. *(schema.test: optional 왕복 1건. doc 영속화는 기존 `designs/service.test.ts`가 증명 — 같은 doc 왕복 메커니즘, 백엔드 변경 0.)*
+- [ ] 마이페이지 카드에 윗면 썸네일이 보이고, 썸네일이 없으면 `creamColor` 폴백이 유지된다. *(코드·정적: 조건부 `<img>`/폴백 typecheck/build 통과. **시각 확인은 수동**.)*
+- [ ] 수정 저장 시 썸네일이 최신 디자인으로 갱신된다. *(코드: `update`도 `withTopThumbnail` 경유. **런타임 수동**.)*
+- [x] 썸네일 생성/업로드 실패가 저장 자체를 막지 않는다(베스트에포트). *(코드: `withTopThumbnail`의 `try/catch`가 실패 시 원본 design 반환 — 저장 경로 무중단. typecheck/build 통과.)*
+- [x] 윗면 crop이 `getNet().top` 기준이다(좌표 단일화 — geometry 경유, 인라인 좌표 수학 0건). *(grep: topThumbnail에 clientX/offset/getBoundingClientRect 0건, 좌표는 `getNet().top`에서만. 단위 테스트: viewBox=net.top·전체 bounds 아님.)*
+- [x] 단위 테스트: `buildTopThumbnailSvg`가 윗면 영역만 굽는다 / `thumbnailAssetId` doc 왕복. *(topThumbnail.test 4건 + schema.test 왕복 1건, 전체 그린.)*
+
+---
+
 ## 6. 의존 그래프 / 권장 순서
 
 ```
@@ -264,7 +309,8 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
   ├─ Phase 3 PRD-S1 손그림 (editor2d·texture)                  ← 독립
   ├─ Phase 4 3D 뷰 읽기 전용화 (2D 편집 패널 숨김)              ← Phase 1~3 후(숨길 패널 존재)
   ├─ Phase 5 PRD-S3 3D 데코 (decorations)                     ← 자체 표면 픽킹(S2 이관으로 의존 해소)
-  └─ Phase 6 PRD-S6 로그인·소유권 저장·마이페이지 (auth·designs)  ← 독립(Must Phase5 전제)
+  ├─ Phase 6 PRD-S6 로그인·소유권 저장·마이페이지 (auth·designs)  ← 독립(Must Phase5 전제)
+  └─ Phase 7 PRD-S6 보강 마이페이지 썸네일 (texture·share·designs·mypage) ← Phase 6 전제(저장=로그인)
 
   (이관) PRD-S2 3D 직접배치 → Could 단계. 본 Should 계획 범위 밖.
 ```
@@ -274,6 +320,7 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 - **Phase 4 는 3D 뷰 읽기 전용화** — Phase 1~3에서 만든 편집 패널(요소·손그림)을 3D 모드에서 숨긴다. 역변환·레이캐스트 불필요.
 - **Phase 5(S3) 는 자체 표면 픽킹** — S2 이관으로 Phase 4 산출물에 더 이상 의존하지 않으며, 데코 배치용 레이캐스트를 자체 구현한다.
 - **Phase 6(S6) 는 독립** — Must Phase 5만 전제하며 S1~S5와 병렬 가능. 이 Phase에서 editToken을 소유권으로 대체한다(다른 Phase는 영향 없음).
+- **Phase 7(썸네일) 은 Phase 6 후** — 저장이 로그인 필요이므로 소유권 저장(Phase 6) 위에서 동작한다. 윗면 렌더는 Phase 1~3(규격·이미지·손그림)이 전개도에 반영된 뒤 정확하므로, 기능상 Should 마지막에 둔다.
 
 ## 7. 교차 검증 (완료 정의)
 
@@ -285,6 +332,7 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 - [x] **소유권 왕복(S6)**: 로그인 저장 → `/d/:id` 수정(소유자) → 타인/비로그인 수정 차단(403/401) → viewToken 열람·복제 → 복제본은 복제자 소유. *(Phase 6: `routes.test.ts`·`service.test.ts` + tsx 서버 curl 왕복 10단계 전부 통과.)*
 - [x] **editToken 제거 점검(S6)**: `/edit/:token`·`/designs/by-edit/*`·`editToken` 잔존 참조 0건(grep). *(소스 grep: functional 참조 0 — 주석·부정단언 테스트만.)*
 - [x] **자산 업로드 한계**: 50MB 초과·비허용 mime 거부가 회귀 없이 유지. *(Phase 2: api 라우트 413/415 테스트 + 실제 HTTP 415)*
+- [~] **썸네일 왕복(Phase 7)**: 저장 → `thumbnailAssetId`(doc) 영속화 → 마이페이지 카드에 윗면 썸네일 표시 → 수정 저장 시 갱신. 썸네일 생성 실패해도 저장은 성공. 윗면 crop은 `getNet().top` 기준(geometry 경유). *(정적·코드 검증 완료: schema/topThumbnail 단위 테스트·typecheck·build·lint·grep. 런타임 PNG 업로드·카드 시각 확인은 로그인 필요 — 수동 항목으로 보고.)*
 
 ## 8. 범위 밖 (혼동 방지)
 
