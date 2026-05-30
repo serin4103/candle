@@ -165,7 +165,7 @@ export const DEFAULT_PIPING_WIDTH = 1;
 export const MIN_PIPING_WIDTH = 0.2;
 export const MAX_PIPING_WIDTH = 2;
 /** 레터링 폰트 크기(cm)와 글자당 가로 비율. */
-export const LETTER_FONT_CM = 9;
+export const LETTER_FONT_CM = 3;
 const LETTER_ASPECT = 0.62;
 
 /** 전개도 로컬 크기(스케일 1, cm). 히트테스트·핸들 배치의 기준 박스. */
