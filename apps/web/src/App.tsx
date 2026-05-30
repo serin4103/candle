@@ -132,8 +132,13 @@ export function App() {
           {!readOnly && (
             <>
               <CakeControls />
-              <LibraryPanel />
-              <DrawingPanel />
+              {/* 요소·손그림 추가 패널은 전개도(2D) 뷰 전용 — 3D 뷰는 읽기 전용이라 숨긴다(PRD-M4). */}
+              {view === 'net' && (
+                <>
+                  <LibraryPanel />
+                  <DrawingPanel />
+                </>
+              )}
             </>
           )}
         </div>
