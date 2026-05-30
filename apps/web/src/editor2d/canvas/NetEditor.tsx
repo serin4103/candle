@@ -324,9 +324,9 @@ export function NetEditor() {
 
   const labelStyle = {
     fontFamily: fontStack,
-    fontSize: 3,
+    fontSize: 1,
     fontWeight: 600,
-    fill: palette.textMuted,
+    fill: '#c4b3b3',
   } as const;
 
   // 파이핑 드래그 미리보기(진행 중일 때만).
@@ -372,7 +372,7 @@ export function NetEditor() {
 
       {/* 윗면 */}
       <text x={net.top.x + net.top.width / 2} y={net.top.y - 2} textAnchor="middle" style={labelStyle}>
-        윗면 · TOP
+        윗면
       </text>
       <path
         d={topOutlinePath(net.crossSection.points, net.top.x, net.top.y)}
@@ -387,7 +387,7 @@ export function NetEditor() {
         textAnchor="middle"
         style={labelStyle}
       >
-        옆면 · SIDE (전개)
+        옆면
       </text>
       <rect
         x={net.side.x}
