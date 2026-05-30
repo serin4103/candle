@@ -240,15 +240,15 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 | 마이페이지 UI | `mypage/`에 저장 디자인 목록(썸네일/이름/수정일) → 선택 시 `/d/:id`로 이동해 편집 이어가기. |
 
 **완료 기준 (PRD-S6 수용 기준)**:
-- [ ] 비로그인 상태로 편집·3D 확인·열람 링크 열기가 그대로 동작한다(로그인 강제 없음).
-- [ ] Google 로그인/로그아웃이 로컬·배포에서 동작한다(리디렉션 URL 등록 후).
-- [ ] 로그인 사용자가 디자인을 저장하면 편집 URL이 `/d/:id`로 바뀐다(고유 id 부여).
-- [ ] 비로그인 상태에서 저장 시도는 차단되고 로그인으로 유도된다(백엔드 401, 프론트 안내).
-- [ ] 저장한 디자인은 소유자만 `/d/:id`로 열어 수정할 수 있다(타인/비로그인 접근 403/거부).
-- [ ] 마이페이지에서 내 저장 디자인 목록이 보이고, 선택 시 해당 편집 페이지로 이동해 편집을 이어갈 수 있다.
-- [ ] 열람 링크(viewToken)로 비로그인 열람·복제가 유지되고, 복제본은 복제자 소유의 새 디자인이 된다.
-- [ ] editToken 경로(`/edit/:token`, `/designs/by-edit/*`)가 제거됐다(잔존 참조 0건 — grep 점검).
-- [ ] designs 서비스 단위 테스트: 소유자 일치/불일치(403)·내 목록·복제 소유권·비로그인 저장 차단.
+- [x] 비로그인 상태로 편집·3D 확인·열람 링크 열기가 그대로 동작한다(로그인 강제 없음). *(App이 로그인 없이 기본 디자인을 편집·3D 토글 렌더; `/view/:token` 200(curl). web build 통과.)*
+- [ ] Google 로그인/로그아웃이 로컬·배포에서 동작한다(리디렉션 URL 등록 후). *(**수동 확인 필요** — Supabase·Google 콘솔 설정 + 실 브라우저. 6.0 체크리스트. 코드: `useAuthSession`·`signInWithOAuth` 배선·build 통과.)*
+- [x] 로그인 사용자가 디자인을 저장하면 편집 URL이 `/d/:id`로 바뀐다(고유 id 부여). *(curl: alice 저장 201 → 서버 uuid 부여. `useShareSession.save`가 `replaceUrl(designUrl(id))`로 승격. 브라우저 주소창 시각 확인 권장.)*
+- [x] 비로그인 상태에서 저장 시도는 차단되고 로그인으로 유도된다(백엔드 401, 프론트 안내). *(curl: 비로그인 POST /designs → 401. App `onSave`가 비로그인 시 LoginDialog 오픈.)*
+- [x] 저장한 디자인은 소유자만 `/d/:id`로 열어 수정할 수 있다(타인/비로그인 접근 403/거부). *(curl: alice 로드/수정 200, bob 로드 403, 수정 view 반영. service.test 소유권 케이스.)*
+- [x] 마이페이지에서 내 저장 디자인 목록이 보이고, 선택 시 해당 편집 페이지로 이동해 편집을 이어갈 수 있다. *(curl: GET /designs(alice) 목록 1건, 비로그인 401. `MyPage` 카드→`navigate(designUrl(id))` 배선·build. 브라우저 시각 확인 권장.)*
+- [x] 열람 링크(viewToken)로 비로그인 열람·복제가 유지되고, 복제본은 복제자 소유의 새 디자인이 된다. *(curl: by-view 200, bob 복제 201→복제본 bob 소유(alice 403), 비로그인 복제 401. service.test 복제 소유권.)*
+- [x] editToken 경로(`/edit/:token`, `/designs/by-edit/*`)가 제거됐다(잔존 참조 0건 — grep 점검). *(grep: 소스에 functional editToken/by-edit 0건 — 주석·부정단언 테스트만 잔존.)*
+- [x] designs 서비스 단위 테스트: 소유자 일치/불일치(403)·내 목록·복제 소유권·비로그인 저장 차단. *(`designs/service.test.ts` 7케이스 + `routes.test.ts` 4케이스 + `auth/verifier.test.ts` 3케이스 통과.)*
 
 ### 6.5 리스크 / 주의
 - **순서 의존**: 소유권 저장(6.2)은 인증(6.1)이 있어야 의미가 있다 → 6.1 → 6.2 → 6.3 → 6.4 순. 기존 Must Phase 5의 editToken 코드를 6.2/6.3에서 걷어낸다.
@@ -282,8 +282,8 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 - [ ] **역변환 round-trip**: `netPointForUV(uvForNetPoint(p)) ≈ p` (원형/사각 필수, 하트 통과 또는 축소 보고).
 - [ ] **레이어 경계 린트**: `tools`/`store`/`texture`/`controls`(ViewModel부)에서 three/r3f/canvas import 0건 유지.
 - [ ] **공유 왕복 확장**: 이미지(S4)·손그림(S1)·데코(S3)·규격(S5)이 포함된 디자인을 저장→편집 수정→viewToken 열람·복제→복제본 독립 수정까지 보존. *(S6 적용 전 편집은 editToken, S6 적용 후 소유권(`/d/:id`) 경로)*
-- [ ] **소유권 왕복(S6)**: 로그인 저장 → `/d/:id` 수정(소유자) → 타인/비로그인 수정 차단(403/401) → viewToken 열람·복제 → 복제본은 복제자 소유.
-- [ ] **editToken 제거 점검(S6)**: `/edit/:token`·`/designs/by-edit/*`·`editToken` 잔존 참조 0건(grep).
+- [x] **소유권 왕복(S6)**: 로그인 저장 → `/d/:id` 수정(소유자) → 타인/비로그인 수정 차단(403/401) → viewToken 열람·복제 → 복제본은 복제자 소유. *(Phase 6: `routes.test.ts`·`service.test.ts` + tsx 서버 curl 왕복 10단계 전부 통과.)*
+- [x] **editToken 제거 점검(S6)**: `/edit/:token`·`/designs/by-edit/*`·`editToken` 잔존 참조 0건(grep). *(소스 grep: functional 참조 0 — 주석·부정단언 테스트만.)*
 - [x] **자산 업로드 한계**: 50MB 초과·비허용 mime 거부가 회귀 없이 유지. *(Phase 2: api 라우트 413/415 테스트 + 실제 HTTP 415)*
 
 ## 8. 범위 밖 (혼동 방지)
