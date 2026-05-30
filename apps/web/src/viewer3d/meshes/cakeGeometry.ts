@@ -4,6 +4,7 @@
 //   u = netX / bounds.width,  v = 1 - netY / bounds.height   (CanvasTexture flipY 보정)
 // 좌표·치수 규칙은 geometry가 단일 출처 — 여기선 그 결과로 정점·UV를 배치만 한다.
 import { BufferGeometry, Float32BufferAttribute, ShapeUtils, Vector2 } from 'three';
+import { orientedTopCrossSection } from '@candle/shared/geometry';
 import type { Net } from '@candle/shared/geometry';
 
 /** 전개도 점(netX, netY) → 구운-전개도 UV. flipY=true CanvasTexture 기준. */
@@ -77,21 +78,26 @@ export function buildSideGeometry(net: Net): BufferGeometry {
 
 /**
  * 뚜껑(윗면/아랫면) 지오메트리. 단면 폴리곤을 earcut으로 삼각분할(하트 오목 영역 대응).
- * y는 호출자가 지정(윗면=H/2, 아랫면=-H/2). UV는 윗면 영역(net.top)에 매핑.
+ * y는 호출자가 지정(윗면=H/2, 아랫면=-H/2). UV는 윗면 영역(net.top)에 매핑하되,
+ * 옆면 가운데에 닿는 점이 윗면 아래쪽 가운데에 오도록 단면을 orient한 좌표를 쓴다
+ * (geometry.orientedTopCrossSection — 2D 외곽선·굽기와 동일 점열로 전개도↔3D 일치).
  */
 export function buildCapGeometry(net: Net, y: number): BufferGeometry {
   const pts = net.crossSection.points;
-  const minX = Math.min(...pts.map((p) => p.x));
-  const minZ = Math.min(...pts.map((p) => p.z));
+  const oriented = orientedTopCrossSection(net);
+  const minX = Math.min(...oriented.map((p) => p.x));
+  const minZ = Math.min(...oriented.map((p) => p.z));
 
   const contour = pts.map((p) => new Vector2(p.x, p.z));
   const faces = ShapeUtils.triangulateShape(contour, []);
 
   const positions: number[] = [];
   const uvs: number[] = [];
-  for (const p of pts) {
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]!;
+    const o = oriented[i]!;
     positions.push(p.x, y, p.z);
-    const [u, v] = uvFor(net, net.top.x + (p.x - minX), net.top.y + (p.z - minZ));
+    const [u, v] = uvFor(net, net.top.x + (o.x - minX), net.top.y + (o.z - minZ));
     uvs.push(u, v);
   }
   const indices = faces.flat();
