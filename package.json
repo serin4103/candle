@@ -6,7 +6,7 @@
   "description": "케이크를 직접 그린 3D 시안으로 소통하게 해주는 웹 디자인 도구",
   "packageManager": "pnpm@10.12.1",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "pnpm -r build",
