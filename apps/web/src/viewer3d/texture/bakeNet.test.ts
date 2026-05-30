@@ -9,6 +9,7 @@ import { registerImageAsset } from '../../editor2d/elements';
 function baseDesign(overrides: Partial<Design> = {}): Design {
   return {
     id: 'd1',
+    title: '내 케이크 디자인',
     shape: 'circle',
     baseColor: '#ffffff',
     creamColor: '#fce8c8',

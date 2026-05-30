@@ -31,6 +31,16 @@ describe('createDefaultDesign', () => {
   });
 });
 
+describe('문서 메타 액션', () => {
+  it('setTitle이 제목을 바꾸고 undo로 되돌린다', () => {
+    const { setTitle, undo } = useDesignStore.getState();
+    setTitle('생일 케이크');
+    expect(useDesignStore.getState().design.title).toBe('생일 케이크');
+    undo();
+    expect(useDesignStore.getState().design.title).toBe(createDefaultDesign().title);
+  });
+});
+
 describe('시트 액션', () => {
   it('setShape / setBaseColor / setCreamColor', () => {
     const s = useDesignStore.getState();

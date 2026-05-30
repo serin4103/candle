@@ -111,9 +111,17 @@ export const Decoration3D = z.object({
 });
 export type Decoration3D = z.infer<typeof Decoration3D>;
 
+/** 새 디자인의 기본 제목(상단바에서 편집, 마이페이지 표시). */
+export const DEFAULT_DESIGN_TITLE = '내 케이크 디자인';
+
 /** 디자인 문서 — 전개도와 3D가 함께 렌더링하는 단일 출처. */
 export const Design = z.object({
   id: z.string(),
+  /**
+   * 디자인 제목 — 편집 페이지 상단바에서 수정하고 마이페이지 목록에 표시한다(PRD-S6).
+   * 제목 필드가 없던 구버전 저장본도 로드되도록 기본값을 둔다(빈 값은 호출부에서 보정).
+   */
+  title: z.string().default(DEFAULT_DESIGN_TITLE),
   shape: Shape,
   baseColor: z.string(), // 시트색
   creamColor: z.string(),

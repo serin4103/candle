@@ -5,7 +5,7 @@
 디자인 문서의 형식과 검증 규칙. 프론트·백엔드 공통 단일 출처.
 
 ## 담는 것
-- `Design`: id, shape(원형/사각/하트), baseColor, spec(호수·높이·층수), elements[], decorations3d[]
+- `Design`: id, title(제목 — 상단바 편집·마이페이지 표시, 구버전 호환 기본값), shape(원형/사각/하트), baseColor, spec(호수·높이·층수), elements[], decorations3d[]
 - `Element`: type(illustration/lettering/piping/drawing/image), transform(x·y·scale·rotation), zIndex, type별 payload — 좌표는 **전개도(UV) 좌표계** 기준
 - `Decoration3D`: type(초/토퍼/과일), position(3D), rotation
 - `ShareLink`: designId, editToken, viewToken

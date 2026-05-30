@@ -45,11 +45,20 @@ function DesignCard({ design }: { design: Design }) {
         <div style={{ height: 110, background: design.creamColor }} />
       )}
       <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <strong style={{ fontSize: 14, color: palette.text }}>
-          {SHAPE_LABEL[design.shape]} 케이크
+        <strong
+          style={{
+            fontSize: 14,
+            color: palette.text,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {design.title}
         </strong>
         <span style={{ fontSize: 12, color: palette.textMuted }}>
-          요소 {design.elements.length}개 · {design.spec.size}호 {design.spec.layers}단
+          {SHAPE_LABEL[design.shape]} · 요소 {design.elements.length}개 · {design.spec.size}호{' '}
+          {design.spec.layers}단
         </span>
       </div>
     </button>

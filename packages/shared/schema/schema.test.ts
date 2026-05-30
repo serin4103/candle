@@ -8,6 +8,7 @@ import {
 
 const validDesign: Design = {
   id: 'd1',
+  title: '내 케이크 디자인',
   shape: 'circle',
   baseColor: '#fff',
   creamColor: '#eee',

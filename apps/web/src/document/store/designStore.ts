@@ -83,6 +83,10 @@ export interface DesignState {
   /** 파이핑 추가 패널의 색상·굵기(모양과 별개로 유지). */
   pipingBrush: PipingBrush;
 
+  // ── 문서 메타 ──
+  /** 디자인 제목 변경(상단바 인라인 편집, PRD-S6). */
+  setTitle: (title: string) => void;
+
   // ── 시트(케이크) ──
   setShape: (shape: Shape) => void;
   setBaseColor: (color: string) => void;
@@ -203,6 +207,9 @@ export const useDesignStore = create<DesignState>((set, get) => {
   pipingBrush: { ...DEFAULT_PIPING_BRUSH },
   canUndo: false,
   canRedo: false,
+
+  setTitle: (title) =>
+    commit('제목 변경', () => set((s) => ({ design: { ...s.design, title } }))),
 
   setShape: (shape) =>
     commit('모양 변경', () => set((s) => ({ design: { ...s.design, shape } }))),

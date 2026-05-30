@@ -1,6 +1,6 @@
 // 기본 디자인 문서 팩토리. 새 시안의 시작 상태를 만든다.
 // schema 타입만 사용하고 좌표 계산은 하지 않는다(Model 토대).
-import type { Design, Spec } from '@candle/shared';
+import { DEFAULT_DESIGN_TITLE, type Design, type Spec } from '@candle/shared';
 
 /** 기본 규격: 1호·한 단·높이 7cm. */
 export const DEFAULT_SPEC: Spec = { size: 1, height: 7, layers: 1 };
@@ -13,6 +13,7 @@ export const DEFAULT_CREAM_COLOR = '#fce8c8';
 export function createDefaultDesign(): Design {
   return {
     id: crypto.randomUUID(),
+    title: DEFAULT_DESIGN_TITLE,
     shape: 'circle',
     baseColor: DEFAULT_BASE_COLOR,
     creamColor: DEFAULT_CREAM_COLOR,

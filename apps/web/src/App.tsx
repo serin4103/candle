@@ -2,7 +2,8 @@
 // 중앙 뷰(케이크 위 전개도↔3D 세그먼트 스위치) + 우측 속성 패널. 열람 모드(PRD-M5)
 // 에선 편집 패널을 숨긴다. 상단바 버튼 "배치"는 셸의 책임이고, 공유 모달은 share/,
 // 로그인 팝업·세션은 auth/가 소유한다(PRD-S6). 마이페이지는 로그인 시에만 노출.
-import { useState, type ReactNode } from 'react';
+import { useState, useRef, type ReactNode } from 'react';
+import { DEFAULT_DESIGN_TITLE } from '@candle/shared';
 import { palette, fontStack, radius, shadow, Button, Panel } from './ui';
 import { CakeControls, ColorControls } from './cake';
 import { NetEditor } from './editor2d/canvas';
@@ -150,6 +151,75 @@ function UndoRedoControls() {
   );
 }
 
+/** 열람 모드 제목 — store의 design.title을 정적으로 보여준다(편집 불가). */
+function ReadOnlyTitle() {
+  const title = useDesignStore((s) => s.design.title);
+  return (
+    <span style={{ color: palette.textMuted, fontSize: 14, marginLeft: 6 }}>{title}</span>
+  );
+}
+
+/**
+ * 디자인 제목 인라인 편집기(상단바). store의 design.title을 구독해 보여주고,
+ * 타이핑은 트랜잭션으로 묶어 undo 1건으로 기록한다. 엔터를 누르면 변경을 확정하고
+ * `onSave`로 DB에 저장한다(빈 제목은 기본값으로 보정). View는 입력 위임만 한다.
+ */
+function TitleEditor({ onSave }: { onSave: () => void }) {
+  const title = useDesignStore((s) => s.design.title);
+  const setTitle = useDesignStore((s) => s.setTitle);
+  const beginTransaction = useDesignStore((s) => s.beginTransaction);
+  const commitTransaction = useDesignStore((s) => s.commitTransaction);
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 빈 제목은 기본값으로 보정한 뒤 트랜잭션을 커밋(타이핑 묶음을 undo 1건으로).
+  const finalize = () => {
+    if (title.trim() === '') setTitle(DEFAULT_DESIGN_TITLE);
+    commitTransaction('제목 변경');
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      value={title}
+      aria-label="디자인 제목"
+      title="디자인 제목 (Enter로 저장)"
+      onFocus={() => {
+        setFocused(true);
+        beginTransaction();
+      }}
+      onChange={(e) => setTitle(e.target.value)}
+      onBlur={() => {
+        setFocused(false);
+        finalize();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          finalize();
+          onSave();
+          inputRef.current?.blur();
+        } else if (e.key === 'Escape') {
+          inputRef.current?.blur();
+        }
+      }}
+      style={{
+        marginLeft: 6,
+        fontFamily: fontStack,
+        fontSize: 14,
+        color: palette.textMuted,
+        padding: '5px 9px',
+        width: 180,
+        border: `1px solid ${focused ? palette.border : 'transparent'}`,
+        borderRadius: radius.sm,
+        background: focused ? palette.surfaceMuted : 'transparent',
+        outline: 'none',
+        transition: 'background 0.15s ease, border-color 0.15s ease',
+      }}
+    />
+  );
+}
+
 export function App() {
   const auth = useAuthSession();
   // 로그인 세션 복원이 끝나야(토큰 세팅) /d/:id 소유자 로드가 401 없이 동작한다.
@@ -223,9 +293,8 @@ export function App() {
           🍰
         </span>
         <strong style={{ fontSize: 18 }}>candle</strong>
-        <span style={{ color: palette.textMuted, fontSize: 14, marginLeft: 6 }}>
-          내 케이크 디자인
-        </span>
+        {/* 제목: 편집 모드는 인라인 편집(엔터로 저장), 열람 모드는 정적 표시. */}
+        {readOnly ? <ReadOnlyTitle /> : <TitleEditor onSave={onSave} />}
 
         {/* 공유·저장·마이페이지·로그인 (셸이 배치, 동작은 share·auth에 위임) */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
