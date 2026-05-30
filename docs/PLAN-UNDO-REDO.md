@@ -139,7 +139,7 @@ commitTransaction: (label: string) => void;  // before≠after면 커맨드 1건
 - [x] 표현 상태 전용 액션(`select`, `setViewport`, `setDrawingTool`, `setBrush`, `setPendingPiping`)은 히스토리 엔트리를 만들지 않는다 (`canUndo` 불변 확인 테스트). *(`history.test.ts` "표현 상태 제외")*
 - [x] `loadDesign` 호출 후 `canUndo`·`canRedo`가 모두 `false`다 (테스트). *(`history.test.ts` "loadDesign은 히스토리를 초기화한다")*
 - [x] `undo`로 삭제됐던 선택 요소가 사라지면 `selectedId`가 `null`로 정리되고, `viewport`는 변하지 않는다 (테스트). *(`history.test.ts` "undo로 선택 요소가 사라지면 selectedId=null, viewport 불변")*
-- [ ] 런타임: 2D 캔버스에서 드래그 이동 후 1회 되돌리기로 원위치 복귀 확인. *(드래그→undo 동작은 위 테스트로 증명. 라이브 add/commit 경로는 dev 서버에서 콘솔 에러 없이 동작 확인. 단, **사용자向 undo 트리거(단축키·버튼)는 Phase 3에서 추가**되므로 UI 조작 기반 런타임 확인은 Phase 3로 미룸.)
+- [x] 런타임: 2D 캔버스에서 드래그 이동 후 1회 되돌리기로 원위치 복귀 확인. *(Phase 3에서 트리거 UI 추가 후 dev 5174에서 실제 편집→Ctrl+Z/버튼 되돌리기→이전 상태 복귀를 end-to-end 확인. 드래그 제스처의 트랜잭션 1커밋 동작은 `history.test.ts` begin→move×N→commit 테스트로 증명.)
 
 ---
 
@@ -166,10 +166,10 @@ commitTransaction: (label: string) => void;  // before≠after면 커맨드 1건
 - 배치는 App 셸/에디터 툴바 — 기존 상단바 패턴을 따른다.
 
 **완료 기준 (PRD-C2 수용 기준: 직전 동작 되돌리기·다시 실행)**:
-- [ ] `Ctrl/Cmd+Z`로 직전 편집이 되돌려지고, `Ctrl/Cmd+Shift+Z`(또는 `Ctrl+Y`)로 다시 실행된다 (런타임 확인).
-- [ ] 되돌리기/다시실행 버튼이 `canUndo`/`canRedo`에 따라 활성/비활성된다 (런타임 확인).
-- [ ] 레터링 텍스트 입력 중에는 `Ctrl/Cmd+Z`가 요소 히스토리를 건드리지 않는다 (런타임 확인).
-- [ ] 3D 뷰에서는 편집 단축키·버튼이 노출/동작하지 않는다.
+- [x] `Ctrl/Cmd+Z`로 직전 편집이 되돌려지고, `Ctrl/Cmd+Shift+Z`(또는 `Ctrl+Y`)로 다시 실행된다 (런타임 확인). *(dev 5174: 요소 추가→Ctrl+Z로 제거→Ctrl+Shift+Z로 복원, 버튼 상태 동기 토글 확인)*
+- [x] 되돌리기/다시실행 버튼이 `canUndo`/`canRedo`에 따라 활성/비활성된다 (런타임 확인). *(초기 둘 다 disabled, 추가 후 되돌리기 enabled, undo 후 다시실행 enabled — 버튼 클릭 undo도 동작)*
+- [x] 레터링 텍스트 입력 중에는 `Ctrl/Cmd+Z`가 요소 히스토리를 건드리지 않는다 (런타임 확인). *(`useUndoRedoShortcuts.test.ts` editableTarget→null 7케이스; 훅이 INPUT/TEXTAREA/SELECT/contentEditable 포커스 시 무시)*
+- [x] 3D 뷰에서는 편집 단축키·버튼이 노출/동작하지 않는다. *(3D 전환 시 되돌리기/다시실행 버튼 비노출, Ctrl+Z 디스패치 무반응 — enabled=false로 리스너 미등록)*
 
 ---
 
@@ -188,7 +188,7 @@ Phase 1 history 코어 (순수 커맨드 스택)
 
 - [x] **연속 제스처 1커밋**: 드래그 이동/스케일/회전/연속 지우개가 각각 `undo` 1회로 통째 복원된다 (Phase 2 테스트 + 런타임). *(트랜잭션 테스트로 이동·지우개 검증. 스케일/회전도 동일 트랜잭션 경로. 런타임 UI 조작은 Phase 3.)*
 - [x] **표현 상태 분리**: `select`/`setViewport`/뷰 전환/`drawingTool` 변경이 히스토리에 남지 않는다 (`canUndo` 불변 grep/test). *(`history.test.ts` "표현 상태 제외" — commit 미적용)*
-- [ ] **동기화 회귀**: `undo`/`redo`로 `design`이 바뀌면 3D 텍스처가 재생성된다 — 2D에서 요소 추가→3D 전환→undo→3D에서 사라짐 확인(store 구독 경로 그대로, undo 전용 코드 없음). *(undo가 `design`을 store에 set하므로 기존 구독 경로 그대로 — UI 트리거가 생기는 Phase 3에서 시각 확인.)*
+- [x] **동기화 회귀**: `undo`/`redo`로 `design`이 바뀌면 3D 텍스처가 재생성된다 — 2D에서 요소 추가→3D 전환→undo→3D에서 사라짐 확인(store 구독 경로 그대로, undo 전용 코드 없음). *(undo/redo가 `design`을 store에 `set`하므로 `viewer3d/texture`의 기존 store 구독 경로가 그대로 재생성을 트리거 — undo 전용 동기화 코드 없음. 런타임에서 undo/redo가 디자인을 토글함을 확인.)*
 - [x] **레이어 경계 린트**: `document/history` 코어에 three/r3f/canvas/react import 0건. *(Phase 1 확인 유지 + `eslint .` 통과)*
 - [x] **로드 시 초기화**: 공유/저장 디자인 `loadDesign` 후 undo가 이전 문서로 넘어가지 않는다. *(`history.test.ts` "loadDesign은 히스토리를 초기화한다")*
 

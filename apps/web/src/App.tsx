@@ -8,6 +8,8 @@ import { CakeControls, ColorControls } from './cake';
 import { NetEditor } from './editor2d/canvas';
 import { LibraryPanel, PropertiesPanel, DrawingPanel } from './editor2d/panels';
 import { useResolveImageAssets } from './editor2d/elements';
+import { useDesignStore } from './document/store';
+import { useUndoRedoShortcuts } from './document/history/useUndoRedoShortcuts';
 import { CakeViewer3D } from './viewer3d';
 import { ShareModal, useShareSession, myPageUrl, navigate } from './share';
 import { useAuthSession, LoginDialog, UserMenu } from './auth';
@@ -93,6 +95,61 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
   );
 }
 
+/** 되돌리기 아이콘(좌향 곡선 화살표). */
+function UndoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M5 5H9.5a3.5 3.5 0 0 1 0 7H6M5 5l2.5-2.5M5 5l2.5 2.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** 다시 실행 아이콘(우향 곡선 화살표). */
+function RedoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M11 5H6.5a3.5 3.5 0 0 0 0 7H10M11 5L8.5 2.5M11 5L8.5 7.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** 되돌리기/다시실행 버튼 묶음. canUndo/canRedo를 구독해 disabled를 토글한다(View). */
+function UndoRedoControls() {
+  const canUndo = useDesignStore((s) => s.canUndo);
+  const canRedo = useDesignStore((s) => s.canRedo);
+  const undo = useDesignStore((s) => s.undo);
+  const redo = useDesignStore((s) => s.redo);
+  const iconBtn = { padding: '8px 10px', display: 'inline-flex', alignItems: 'center' } as const;
+  return (
+    <div style={{ display: 'inline-flex', gap: 4 }}>
+      <Button aria-label="되돌리기" title="되돌리기 (Ctrl/⌘+Z)" disabled={!canUndo} onClick={undo} style={iconBtn}>
+        <UndoIcon />
+      </Button>
+      <Button
+        aria-label="다시 실행"
+        title="다시 실행 (Ctrl/⌘+Shift+Z)"
+        disabled={!canRedo}
+        onClick={redo}
+        style={iconBtn}
+      >
+        <RedoIcon />
+      </Button>
+    </div>
+  );
+}
+
 export function App() {
   const auth = useAuthSession();
   // 로그인 세션 복원이 끝나야(토큰 세팅) /d/:id 소유자 로드가 401 없이 동작한다.
@@ -103,6 +160,9 @@ export function App() {
   const readOnly = session.mode === 'view';
   // 뷰 전환은 표현 상태(디자인 문서 아님) — App-local로 둔다.
   const [view, setView] = useState<ViewMode>(readOnly ? '3d' : 'net');
+  // undo/redo 단축키는 편집 맥락(전개도 뷰)에서만. 3D 읽기 전용/열람 모드에선 비활성(PRD-M4).
+  const editing = !readOnly && view === 'net';
+  useUndoRedoShortcuts(editing);
   // 로그인 팝업·사용자 메뉴 열림 상태(셸이 트리거·배치를 소유).
   const [loginOpen, setLoginOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -240,8 +300,24 @@ export function App() {
             minHeight: 0,
           }}
         >
-          {/* 전개도 ↔ 3D 전환 — 케이크 위쪽에 세그먼트 스위치로 둔다(상단바 아님). */}
-          <ViewToggle view={view} onChange={setView} />
+          {/* 전개도 ↔ 3D 전환 — 케이크 위쪽에 세그먼트 스위치로 둔다(상단바 아님).
+              되돌리기/다시실행은 편집(전개도) 뷰에서만 좌측에 둔다(PRD-C2). */}
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            {editing && (
+              <div style={{ position: 'absolute', left: 0 }}>
+                <UndoRedoControls />
+              </div>
+            )}
+            <ViewToggle view={view} onChange={setView} />
+          </div>
           <div
             style={{
               flex: 1,
