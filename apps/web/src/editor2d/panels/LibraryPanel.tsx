@@ -80,17 +80,10 @@ export function LibraryPanel() {
     padding: 0,
   } as const;
 
-  const sectionLabel = {
-    fontSize: 13,
-    fontWeight: 600,
-    color: palette.textMuted,
-    margin: '0 0 6px',
-  } as const;
-
+  // 일러스트·레터링·이미지를 각각 독립 패널(블록)로 분리한다.
   return (
-    <Panel title="요소">
-      <div>
-        <p style={sectionLabel}>일러스트</p>
+    <>
+      <Panel title="일러스트">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {illustrations.map((a) => (
             <Button
@@ -108,10 +101,9 @@ export function LibraryPanel() {
             </Button>
           ))}
         </div>
-      </div>
+      </Panel>
 
-      <div>
-        <p style={sectionLabel}>레터링</p>
+      <Panel title="레터링">
         <Button
           variant="primary"
           onClick={() =>
@@ -125,11 +117,10 @@ export function LibraryPanel() {
         >
           + 텍스트 추가
         </Button>
-      </div>
+      </Panel>
 
-      <div>
-        <p style={sectionLabel}>이미지</p>
-        <p style={{ fontSize: 12, color: palette.textMuted, margin: '0 0 6px' }}>
+      <Panel title="이미지">
+        <p style={{ fontSize: 12, color: palette.textMuted, margin: 0 }}>
           PNG·JPG·SVG, 최대 50MB.
         </p>
         <input
@@ -147,11 +138,11 @@ export function LibraryPanel() {
           {uploading ? '업로드 중…' : '+ 이미지 업로드'}
         </Button>
         {uploadError && (
-          <p style={{ fontSize: 12, color: '#c0392b', margin: '6px 0 0' }}>
+          <p style={{ fontSize: 12, color: '#c0392b', margin: 0 }}>
             {uploadError}
           </p>
         )}
-      </div>
-    </Panel>
+      </Panel>
+    </>
   );
 }

@@ -361,6 +361,8 @@ export function NetEditor() {
     fontSize: 1,
     fontWeight: 600,
     fill: '#c4b3b3',
+    userSelect: 'none',
+    pointerEvents: 'none',
   } as const;
 
   return (

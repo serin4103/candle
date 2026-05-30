@@ -1,9 +1,19 @@
 // editor2d/panels/PropertiesPanel — 선택 요소 속성 편집(View).
 // 입력을 store 액션으로 위임만 한다(로직·계산 없음). 레터링은 텍스트·폰트·색상,
 // 공통은 레이어 순서(앞/뒤)와 삭제.
+import type { Element } from '@candle/shared';
 import { Panel, Button, ColorPicker, palette, fontStack } from '../../ui';
 import { useDesignStore } from '../../document/store';
 import { letteringFonts, illustrationAsset } from '../elements';
+
+/** 선택 요소 타입별 패널 제목. */
+const ELEMENT_LABELS: Record<Element['type'], string> = {
+  lettering: '레터링',
+  piping: '파이핑',
+  illustration: '일러스트',
+  image: '이미지',
+  drawing: '손그림',
+};
 
 const LETTER_SWATCHES = ['#5a3b3b', '#ffffff', '#e87f97', '#d6a23e', '#6b8e72', '#5b7fa6'] as const;
 /** 파이핑·일러스트 색상 스와치(브랜드 파스텔 + 기본 흑백). */
@@ -49,7 +59,7 @@ export function PropertiesPanel() {
   } as const;
 
   return (
-    <Panel title="속성">
+    <Panel title={ELEMENT_LABELS[selected.type] ?? '속성'}>
       {selected.type === 'lettering' && (
         <>
           <div>
