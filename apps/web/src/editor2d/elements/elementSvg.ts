@@ -70,9 +70,9 @@ export function pipingMarkup(
       const p = points[0]!;
       return `<circle cx="${n(p.x)}" cy="${n(p.y)}" r="${n(width / 2)}" fill="${fill}"/>`;
     }
-    const lambda = Math.max(0.1, width) * 1.6; // 한 물결의 길이(cm)
-    const amp = Math.max(0.05, width) * 0.5; // 진폭(중심선 기준)
-    const step = lambda / 12; // 매끄러운 곡선을 위한 샘플 간격
+    const lambda = Math.max(0.1, width) * 3; // 한 물결의 길이(cm) — 길수록 완만
+    const amp = Math.max(0.05, width) * 0.35; // 진폭(중심선 기준) — 작을수록 완만
+    const step = lambda / 16; // 매끄러운 곡선을 위한 샘플 간격
     const fine = resamplePath(points, step);
     const wave = fine.map((s, i) => {
       const d = i * step;
