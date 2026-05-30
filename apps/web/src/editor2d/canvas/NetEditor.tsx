@@ -3,7 +3,7 @@
 // tools(ViewModel)로 위임한다. 계산 금지: 좌표 변환은 SVG CTM, 히트테스트·
 // 제스처 수학은 tools/shared-geometry. store를 구독해 렌더만 한다.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getNet, runFromPoints } from '@candle/shared/geometry';
+import { getNet, runFromPoints, sideGridU, orientedTopCrossSection } from '@candle/shared/geometry';
 import type { Point } from '@candle/shared/geometry';
 import { useDesignStore } from '../../document/store';
 import { palette, fontStack } from '../../ui';
@@ -375,7 +375,7 @@ export function NetEditor() {
         윗면
       </text>
       <path
-        d={topOutlinePath(net.crossSection.points, net.top.x, net.top.y)}
+        d={topOutlinePath(orientedTopCrossSection(net), net.top.x, net.top.y)}
         fill={creamColor}
         filter="url(#net-edit-shadow)"
       />
@@ -397,6 +397,26 @@ export function NetEditor() {
         fill={creamColor}
         filter="url(#net-edit-shadow)"
       />
+
+      {/* 옆면 눈금선 — 3D에서의 면·모서리 경계(이음매) 참조. 요소 아래의 가이드라인. */}
+      <g pointerEvents="none">
+        {sideGridU(shape, spec).map((u) => {
+          const x = net.side.x + u * net.side.width;
+          return (
+            <line
+              key={u}
+              x1={x}
+              y1={net.side.y}
+              x2={x}
+              y2={net.side.y + net.side.height}
+              stroke={palette.textMuted}
+              strokeWidth={strokeW}
+              strokeDasharray={`${strokeW * 4} ${strokeW * 3}`}
+              opacity={0.5}
+            />
+          );
+        })}
+      </g>
 
       {/* 요소(zIndex 오름차순). 도구 활성 시 요소 위에서도 도구 커서가 보이도록 inherit. */}
       {sorted.map((el) => (

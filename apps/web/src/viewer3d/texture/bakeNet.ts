@@ -4,7 +4,7 @@
 // View(viewer3d/CakeViewer3D)가 한다 — 여기는 캔버스(이미지)까지만 책임진다.
 // 좌표·도형 마크업은 shared/geometry·editor2d의 순수 빌더가 단일 출처(중복 구현 금지).
 import type { Design } from '@candle/shared';
-import { getNet } from '@candle/shared/geometry';
+import { getNet, orientedTopCrossSection } from '@candle/shared/geometry';
 import type { Net } from '@candle/shared/geometry';
 import { topOutlinePath } from '../../editor2d/canvas/netPath';
 import { elementGroupMarkup } from '../../editor2d/elements/elementSvg';
@@ -33,7 +33,7 @@ export function buildNetSvg(design: Design): string {
   const { width: w, height: h } = net.bounds;
   const cream = escapeAttr(design.creamColor);
 
-  const topPath = topOutlinePath(net.crossSection.points, net.top.x, net.top.y);
+  const topPath = topOutlinePath(orientedTopCrossSection(net), net.top.x, net.top.y);
   const elements = [...design.elements]
     .sort((a, b) => a.zIndex - b.zIndex)
     .map(elementGroupMarkup)
