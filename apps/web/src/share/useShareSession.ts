@@ -24,7 +24,11 @@ export interface ShareSession {
   clone: () => Promise<void>;
 }
 
-export function useShareSession(): ShareSession {
+/**
+ * @param authReady 로그인 세션 복원이 끝났는지(토큰이 api 클라이언트에 세팅됐는지).
+ *   `/d/:id`(소유자 전용) 로드는 토큰이 준비된 뒤 실행해야 401 레이스를 피한다.
+ */
+export function useShareSession(authReady: boolean): ShareSession {
   // 진입 경로는 마운트 시점에 한 번 확정한다.
   const [route] = useState(() => parseRoute());
   // 저장 후 new→design으로 승격하므로 mode·id는 상태로 둔다.
@@ -44,6 +48,9 @@ export function useShareSession(): ShareSession {
     void (async () => {
       try {
         if (route.mode === 'design' && route.id) {
+          // 소유자 전용 로드는 토큰이 준비된 뒤에만(미준비면 대기 — authReady가
+          // true로 바뀌며 이 effect가 다시 실행된다). 토큰 없이 보내면 401.
+          if (!authReady) return;
           const result = await loadById(route.id);
           if (cancelled) return;
           loadDesign(result.design);
@@ -66,7 +73,7 @@ export function useShareSession(): ShareSession {
     return () => {
       cancelled = true;
     };
-  }, [route, loadDesign]);
+  }, [route, authReady, loadDesign]);
 
   const save = useCallback(async () => {
     setStatus('saving');

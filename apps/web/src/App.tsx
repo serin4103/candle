@@ -16,7 +16,8 @@ type ViewMode = 'net' | '3d';
 
 export function App() {
   const auth = useAuthSession();
-  const session = useShareSession();
+  // 로그인 세션 복원이 끝나야(토큰 세팅) /d/:id 소유자 로드가 401 없이 동작한다.
+  const session = useShareSession(auth.status === 'ready');
   // 공유/복제로 진입했을 때 문서의 image 요소 자산을 서버에서 받아 채운다(PRD-S4).
   useResolveImageAssets();
   // 열람 링크 진입이면 편집 UI를 숨기고 3D 시안을 먼저 보여준다.
