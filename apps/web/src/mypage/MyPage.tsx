@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import type { Design } from '@candle/shared';
 import { listMyDesigns } from '../api';
+import { readCachedDesigns } from './prefetch';
 import { designUrl, navigate } from '../share';
 import type { AuthSession } from '../auth';
 import { palette, radius, shadow, fontStack, Button } from '../ui';
@@ -48,18 +49,24 @@ function DesignCard({ design }: { design: Design }) {
 
 export function MyPage({ session }: { session: AuthSession }) {
   const { user, status, isConfigured, signInWithGoogle } = session;
-  const [designs, setDesigns] = useState<Design[] | null>(null);
+  // prefetch 캐시가 있으면 즉시 그린다(stale-while-revalidate). 리로드 전 버튼
+  // hover/pointerdown에서 채워둔 캐시가 있어 빈 화면 없이 바로 목록이 뜬다.
+  const [designs, setDesigns] = useState<Design[] | null>(() =>
+    user ? readCachedDesigns(user.id) : null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+    // 캐시를 보여주는 동안 백그라운드로 최신 목록을 받아 갱신한다.
     void (async () => {
       try {
         const list = await listMyDesigns();
         if (!cancelled) setDesigns(list);
       } catch (e) {
-        if (!cancelled) setError((e as Error).message);
+        // 이미 캐시로 그려둔 게 있으면 그대로 두고(끊김 방지), 없을 때만 오류 표시.
+        if (!cancelled && !readCachedDesigns(user.id)) setError((e as Error).message);
       }
     })();
     return () => {

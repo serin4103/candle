@@ -11,7 +11,7 @@ import { useResolveImageAssets } from './editor2d/elements';
 import { CakeViewer3D } from './viewer3d';
 import { ShareModal, useShareSession, myPageUrl, navigate } from './share';
 import { useAuthSession, LoginDialog, UserMenu } from './auth';
-import { MyPage } from './mypage';
+import { MyPage, prefetchMyDesigns } from './mypage';
 
 type ViewMode = 'net' | '3d';
 
@@ -177,8 +177,18 @@ export function App() {
               {saveLabel}
             </Button>
           )}
-          {/* 마이페이지는 로그인 사용자에게만 노출(PRD-S6). */}
-          {auth.user && <Button onClick={() => navigate(myPageUrl())}>마이페이지</Button>}
+          {/* 마이페이지는 로그인 사용자에게만 노출(PRD-S6). 리로드 전에 hover/누름으로
+              목록을 미리 받아 캐시에 채워, 진입 시 빈 화면 없이 즉시 뜨게 한다. */}
+          {auth.user && (
+            <Button
+              onMouseEnter={() => prefetchMyDesigns(auth.user!.id)}
+              onFocus={() => prefetchMyDesigns(auth.user!.id)}
+              onPointerDown={() => prefetchMyDesigns(auth.user!.id)}
+              onClick={() => navigate(myPageUrl())}
+            >
+              마이페이지
+            </Button>
+          )}
           {auth.user ? (
             <Button onClick={() => setMenuOpen(true)} aria-label="사용자 메뉴">
               {auth.user.email ?? '내 계정'}
