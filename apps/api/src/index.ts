@@ -80,6 +80,8 @@ export function buildServer(): FastifyInstance {
   const webOrigin = process.env.WEB_ORIGIN;
   void app.register(cors, {
     origin: webOrigin ? webOrigin.split(',').map((o) => o.trim()) : true,
+    // PUT(수정 저장)·DELETE 포함 — 명시 안 하면 preflight allow-methods에서 누락된다.
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
   registerAuth(app, createAuthVerifier(app));
