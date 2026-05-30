@@ -1,8 +1,8 @@
-# viewer3d — 3D 뷰 (PRD-M4, PRD-S2, PRD-S3)
+# viewer3d — 3D 뷰 (PRD-M4, PRD-S3 · PRD-S2는 Could)
 
 > 제품 요구사항(기능 ID 정의)은 루트 [CLAUDE.md](../../../../CLAUDE.md)의 **PRD** 섹션 참조.
 
-전개도 디자인을 3D 케이크로 매핑해 입체로 확인하는 화면. 360° 회전·확대축소.
+전개도 디자인을 3D 케이크로 매핑해 입체로 확인하는 화면. 360° 회전·확대축소. **3D 뷰는 읽기 전용** — 요소·손그림 추가 등 2D 전용 편집 패널은 3D 뷰에서 숨긴다(PRD-M4). 3D에서의 직접 배치(PRD-S2)는 Could로 이관됐다.
 
 ## 동기화 원리
 전개도를 직접 변환하지 않는다. `document/store`를 구독해 전개도를 **텍스처로 구워**(`texture/`) 메시에 UV 매핑한다. 같은 문서를 다시 렌더링하므로 전환 시 자동 동기화된다.
@@ -11,4 +11,4 @@
 - `meshes/` — View (메시 생성)
 - `texture/` — ViewModel (텍스처 굽기·동기화 핵심)
 - `decorations/` — View (입체 데코)
-- `controls/` — View + ViewModel (카메라·3D 직접배치)
+- `controls/` — View + ViewModel (카메라. 3D 직접배치=PRD-S2는 Could로 이관)
