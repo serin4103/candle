@@ -30,6 +30,7 @@ import {
   type Strokelike,
 } from '../tools';
 import { topOutlinePath } from './netPath';
+import { PEN_CURSOR, ERASER_CURSOR, PIPING_CURSOR } from './cursors';
 
 const PAD = 6;
 // 핸들은 화면 일정 크기(px)로 보이도록 렌더 스케일로 cm 변환해 그린다.
@@ -58,6 +59,7 @@ export function NetEditor() {
   const pendingPiping = useDesignStore((s) => s.pendingPiping);
   const setPendingPiping = useDesignStore((s) => s.setPendingPiping);
   const drawingTool = useDesignStore((s) => s.drawingTool);
+  const setDrawingTool = useDesignStore((s) => s.setDrawingTool);
   const brush = useDesignStore((s) => s.brush);
   const addDrawing = useDesignStore((s) => s.addDrawing);
   // 이미지 자산이 비동기로 해석되면(version) 요소 마크업을 다시 그린다(PRD-S4).
@@ -76,13 +78,15 @@ export function NetEditor() {
   // 화면 px ÷ 전개도 cm 배율(핸들을 일정 화면 크기로 그리기 위함).
   const [pxPerCm, setPxPerCm] = useState(1);
 
-  // 키보드: Esc로 파이핑 모드 해제, Delete/Backspace로 선택 삭제(입력 중 제외).
+  // 키보드: Esc로 도구(펜/지우개/파이핑)·선택 해제, Delete/Backspace로 선택 삭제(입력 중 제외).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.key === 'Escape' && pendingPiping) {
-        setPendingPiping(null);
+      if (e.key === 'Escape') {
+        if (drawingTool) setDrawingTool(null);
+        if (pendingPiping) setPendingPiping(null);
+        select(null);
         return;
       }
       if (selectedId && (e.key === 'Delete' || e.key === 'Backspace')) {
@@ -92,7 +96,7 @@ export function NetEditor() {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, deleteElement, pendingPiping, setPendingPiping]);
+  }, [selectedId, deleteElement, pendingPiping, setPendingPiping, drawingTool, setDrawingTool, select]);
 
   const net = getNet(shape, spec);
   const sorted = [...elements].sort((a, b) => a.zIndex - b.zIndex);
@@ -347,11 +351,12 @@ export function NetEditor() {
         height: '100%',
         maxHeight: 760,
         touchAction: 'none',
-        cursor:
-          pendingPiping || drawingTool === 'pen'
-            ? 'crosshair'
+        cursor: pendingPiping
+          ? PIPING_CURSOR
+          : drawingTool === 'pen'
+            ? PEN_CURSOR
             : drawingTool === 'eraser'
-              ? 'cell'
+              ? ERASER_CURSOR
               : 'default',
       }}
       onPointerDown={onPointerDown}
@@ -393,9 +398,13 @@ export function NetEditor() {
         filter="url(#net-edit-shadow)"
       />
 
-      {/* 요소(zIndex 오름차순) */}
+      {/* 요소(zIndex 오름차순). 도구 활성 시 요소 위에서도 도구 커서가 보이도록 inherit. */}
       {sorted.map((el) => (
-        <ElementView key={el.id} element={el} />
+        <ElementView
+          key={el.id}
+          element={el}
+          cursor={pendingPiping || drawingTool ? 'inherit' : 'pointer'}
+        />
       ))}
 
       {/* 파이핑 드래그 미리보기 */}

@@ -6,6 +6,11 @@ import { elementInnerMarkup, pipingMarkup } from './elementSvg';
 
 export interface ElementViewProps {
   element: Element;
+  /**
+   * 요소 위 커서. 기본은 선택 가능 표시 'pointer'. 도구(펜/지우개/파이핑) 활성 시엔
+   * 'inherit'를 넘겨 캔버스의 도구 커서가 요소 위에서도 그대로 보이게 한다.
+   */
+  cursor?: string;
 }
 
 export interface PipingRunProps {
@@ -24,7 +29,7 @@ export function PipingRun({ variant, color, length }: PipingRunProps) {
 }
 
 /** 요소를 그 transform대로 배치한 SVG 그룹으로 렌더한다. */
-export function ElementView({ element }: ElementViewProps) {
+export function ElementView({ element, cursor = 'pointer' }: ElementViewProps) {
   const { x, y, scale, rotation } = element.transform;
   const deg = (rotation * 180) / Math.PI;
   const groupTransform = `translate(${x} ${y}) rotate(${deg}) scale(${scale})`;
@@ -33,7 +38,7 @@ export function ElementView({ element }: ElementViewProps) {
     <g
       transform={groupTransform}
       data-element-id={element.id}
-      style={{ cursor: 'pointer' }}
+      style={{ cursor }}
       dangerouslySetInnerHTML={{ __html: elementInnerMarkup(element) }}
     />
   );
