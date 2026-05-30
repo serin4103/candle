@@ -13,6 +13,7 @@ import {
 import type { Point, Viewport } from '@candle/shared/geometry';
 import { centerOfPoints } from '@candle/shared/geometry';
 import { createDefaultDesign } from './defaultDesign';
+import { createCommandStack } from '../history';
 
 /** id·zIndex 없이 추가할 요소 입력. zIndex는 생략 시 자동 부여. */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -123,10 +124,27 @@ export interface DesignState {
   setPipingBrush: (patch: Partial<PipingBrush>) => void;
 
   // ── 문서 로드/스냅샷 ──
-  /** 외부 디자인 문서를 검증 후 적재. */
+  /** 외부 디자인 문서를 검증 후 적재. 히스토리를 초기화한다. */
   loadDesign: (design: unknown) => void;
   /** 현재 문서의 검증된 깊은 복사본 반환(저장·공유용). */
   getDesignSnapshot: () => Design;
+
+  // ── 히스토리 (undo/redo, PRD-C2) ──
+  /** 되돌리기 가능 여부(버튼 disabled 구독용). */
+  canUndo: boolean;
+  /** 다시 실행 가능 여부. */
+  canRedo: boolean;
+  /** 직전 편집을 되돌린다(가능할 때만). 새 커맨드를 만들지 않는다. */
+  undo: () => void;
+  /** 되돌린 편집을 다시 실행한다(가능할 때만). */
+  redo: () => void;
+  /**
+   * 연속 제스처(드래그·연속 지우개) 시작. 현재 design을 before로 고정하고,
+   * 트랜잭션이 끝날 때까지 이산 자동 커밋을 보류한다.
+   */
+  beginTransaction: () => void;
+  /** 연속 제스처 종료. 시작~현재 변화가 있으면 커맨드 1건으로 커밋한다. */
+  commitTransaction: (label: string) => void;
 }
 
 /** 요소 배열에서 가장 큰 zIndex + 1 (없으면 0). */
@@ -143,7 +161,39 @@ function mapElement(
   return elements.map((el) => (el.id === id ? fn(el) : el));
 }
 
-export const useDesignStore = create<DesignState>((set, get) => ({
+export const useDesignStore = create<DesignState>((set, get) => {
+  // ── 히스토리(PRD-C2) 내부 상태: 표현 상태가 아니라 편집 커밋 인프라다. ──
+  const stack = createCommandStack();
+  // 연속 제스처 동안 이산 자동 커밋을 보류하기 위한 트랜잭션 플래그/시작 스냅샷.
+  let txActive = false;
+  let txBefore: Design | null = null;
+
+  /** canUndo/canRedo 플래그를 스택 상태와 동기화(버튼 구독용). */
+  const syncFlags = () => set({ canUndo: stack.canUndo(), canRedo: stack.canRedo() });
+
+  /** 문서 내용 동등성(no-op 커맨드 방지). 액션이 불변 갱신이라 참조는 항상 달라지므로 내용으로 비교. */
+  const sameDoc = (a: Design, b: Design) => JSON.stringify(a) === JSON.stringify(b);
+
+  /**
+   * 이산 편집을 커맨드 1건으로 커밋한다. 트랜잭션 중이면 푸시를 보류하고
+   * (외부 commitTransaction이 누적 변화를 한 번에 묶는다), 아니면 before/after를
+   * 비교해 변화가 있을 때만 푸시한다.
+   */
+  const commit = (label: string, mutate: () => void) => {
+    if (txActive) {
+      mutate();
+      return;
+    }
+    const before = get().design;
+    mutate();
+    const after = get().design;
+    if (!sameDoc(before, after)) {
+      stack.push({ label, before, after });
+      syncFlags();
+    }
+  };
+
+  return {
   design: createDefaultDesign(),
   selectedId: null,
   viewport: { ...DEFAULT_VIEWPORT },
@@ -151,110 +201,131 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   drawingTool: null,
   brush: { ...DEFAULT_BRUSH },
   pipingBrush: { ...DEFAULT_PIPING_BRUSH },
+  canUndo: false,
+  canRedo: false,
 
   setShape: (shape) =>
-    set((s) => ({ design: { ...s.design, shape } })),
+    commit('모양 변경', () => set((s) => ({ design: { ...s.design, shape } }))),
 
   setBaseColor: (color) =>
-    set((s) => ({ design: { ...s.design, baseColor: color } })),
+    commit('시트색 변경', () => set((s) => ({ design: { ...s.design, baseColor: color } }))),
 
   setCreamColor: (color) =>
-    set((s) => ({ design: { ...s.design, creamColor: color } })),
+    commit('크림색 변경', () => set((s) => ({ design: { ...s.design, creamColor: color } }))),
 
   addElement: (input) => {
     const id = crypto.randomUUID();
-    const { design } = get();
-    const element = validateElement({
-      ...input,
-      id,
-      zIndex: input.zIndex ?? nextZIndex(design.elements),
+    commit('요소 추가', () => {
+      const { design } = get();
+      const element = validateElement({
+        ...input,
+        id,
+        zIndex: input.zIndex ?? nextZIndex(design.elements),
+      });
+      set((s) => ({
+        design: { ...s.design, elements: [...s.design.elements, element] },
+      }));
     });
-    set((s) => ({
-      design: { ...s.design, elements: [...s.design.elements, element] },
-    }));
     return id;
   },
 
   moveElement: (id, position) =>
-    set((s) => ({
-      design: {
-        ...s.design,
-        elements: mapElement(s.design.elements, id, (el) => ({
-          ...el,
-          transform: { ...el.transform, x: position.x, y: position.y },
-        })),
-      },
-    })),
+    commit('요소 이동', () =>
+      set((s) => ({
+        design: {
+          ...s.design,
+          elements: mapElement(s.design.elements, id, (el) => ({
+            ...el,
+            transform: { ...el.transform, x: position.x, y: position.y },
+          })),
+        },
+      })),
+    ),
 
   scaleElement: (id, scale) =>
-    set((s) => ({
-      design: {
-        ...s.design,
-        elements: mapElement(s.design.elements, id, (el) => ({
-          ...el,
-          transform: { ...el.transform, scale },
-        })),
-      },
-    })),
+    commit('크기 조절', () =>
+      set((s) => ({
+        design: {
+          ...s.design,
+          elements: mapElement(s.design.elements, id, (el) => ({
+            ...el,
+            transform: { ...el.transform, scale },
+          })),
+        },
+      })),
+    ),
 
   rotateElement: (id, rotation) =>
-    set((s) => ({
-      design: {
-        ...s.design,
-        elements: mapElement(s.design.elements, id, (el) => ({
-          ...el,
-          transform: { ...el.transform, rotation },
-        })),
-      },
-    })),
+    commit('회전', () =>
+      set((s) => ({
+        design: {
+          ...s.design,
+          elements: mapElement(s.design.elements, id, (el) => ({
+            ...el,
+            transform: { ...el.transform, rotation },
+          })),
+        },
+      })),
+    ),
 
   deleteElement: (id) =>
-    set((s) => ({
-      design: {
-        ...s.design,
-        elements: s.design.elements.filter((el) => el.id !== id),
-      },
-      selectedId: s.selectedId === id ? null : s.selectedId,
-    })),
+    commit('요소 삭제', () =>
+      set((s) => ({
+        design: {
+          ...s.design,
+          elements: s.design.elements.filter((el) => el.id !== id),
+        },
+        selectedId: s.selectedId === id ? null : s.selectedId,
+      })),
+    ),
 
   reorderElement: (id, zIndex) =>
-    set((s) => ({
-      design: {
-        ...s.design,
-        elements: mapElement(s.design.elements, id, (el) => ({ ...el, zIndex })),
-      },
-    })),
+    commit('레이어 순서 변경', () =>
+      set((s) => ({
+        design: {
+          ...s.design,
+          elements: mapElement(s.design.elements, id, (el) => ({ ...el, zIndex })),
+        },
+      })),
+    ),
 
   updateLettering: (id, patch) =>
-    set((s) => ({
-      design: {
-        ...s.design,
-        elements: mapElement(s.design.elements, id, (el) =>
-          el.type === 'lettering' ? { ...el, ...patch } : el,
-        ),
-      },
-    })),
+    commit('레터링 변경', () =>
+      set((s) => ({
+        design: {
+          ...s.design,
+          elements: mapElement(s.design.elements, id, (el) =>
+            el.type === 'lettering' ? { ...el, ...patch } : el,
+          ),
+        },
+      })),
+    ),
 
   updatePiping: (id, patch) =>
-    set((s) => ({
-      design: {
-        ...s.design,
-        elements: mapElement(s.design.elements, id, (el) =>
-          el.type === 'piping' ? { ...el, ...patch } : el,
-        ),
-      },
-    })),
+    commit('파이핑 변경', () =>
+      set((s) => ({
+        design: {
+          ...s.design,
+          elements: mapElement(s.design.elements, id, (el) =>
+            el.type === 'piping' ? { ...el, ...patch } : el,
+          ),
+        },
+      })),
+    ),
 
   updateIllustration: (id, patch) =>
-    set((s) => ({
-      design: {
-        ...s.design,
-        elements: mapElement(s.design.elements, id, (el) =>
-          el.type === 'illustration' ? { ...el, ...patch } : el,
-        ),
-      },
-    })),
+    commit('일러스트 변경', () =>
+      set((s) => ({
+        design: {
+          ...s.design,
+          elements: mapElement(s.design.elements, id, (el) =>
+            el.type === 'illustration' ? { ...el, ...patch } : el,
+          ),
+        },
+      })),
+    ),
 
+  // addElement를 통해 커밋되므로(중복 방지) 별도 커밋 래핑은 두지 않는다.
   addDrawing: (points, color, width) =>
     get().addElement({
       type: 'drawing',
@@ -302,8 +373,59 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       pendingPiping: s.pendingPiping ? { ...s.pendingPiping, ...patch } : s.pendingPiping,
     })),
 
-  loadDesign: (design) =>
-    set({ design: validateDesign(design), selectedId: null, pendingPiping: null, drawingTool: null }),
+  loadDesign: (design) => {
+    // 저장본·공유본을 적재하면 이전 undo 이력은 의미 없다 → 초기화.
+    stack.clear();
+    txActive = false;
+    txBefore = null;
+    set({
+      design: validateDesign(design),
+      selectedId: null,
+      pendingPiping: null,
+      drawingTool: null,
+      canUndo: false,
+      canRedo: false,
+    });
+  },
 
   getDesignSnapshot: () => structuredClone(validateDesign(get().design)),
-}));
+
+  undo: () => {
+    const before = stack.undo();
+    if (!before) return;
+    set((s) => ({
+      design: before,
+      // 사라진 요소를 가리키는 선택은 정리. viewport·도구 상태는 건드리지 않음.
+      selectedId: before.elements.some((el) => el.id === s.selectedId) ? s.selectedId : null,
+    }));
+    syncFlags();
+  },
+
+  redo: () => {
+    const after = stack.redo();
+    if (!after) return;
+    set((s) => ({
+      design: after,
+      selectedId: after.elements.some((el) => el.id === s.selectedId) ? s.selectedId : null,
+    }));
+    syncFlags();
+  },
+
+  beginTransaction: () => {
+    txBefore = get().design;
+    txActive = true;
+  },
+
+  commitTransaction: (label) => {
+    if (!txActive) return;
+    const before = txBefore;
+    const after = get().design;
+    txActive = false;
+    txBefore = null;
+    if (before && !sameDoc(before, after)) {
+      stack.push({ label, before, after });
+      syncFlags();
+    }
+  },
+  };
+});
