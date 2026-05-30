@@ -3,12 +3,17 @@
 // 계산·상태는 store가 보유한다(패널에 편집 로직 금지).
 import { useDesignStore } from '../../document/store';
 import { Panel, Button, ColorPicker, palette } from '../../ui';
+import pencilUrl from '../canvas/cursors/pencil.png?url';
+import eraserUrl from '../canvas/cursors/eraser.png?url';
 
 /** 브러시 색 스와치 — 크림 위에서 잘 보이는 기본 색들. */
 const BRUSH_SWATCHES = ['#5a3b3b', '#e87f97', '#3b6ea5', '#4a8c5f', '#222222'] as const;
 /** 굵기 범위(전개도 cm). */
-const MIN_WIDTH = 0.5;
-const MAX_WIDTH = 8;
+const MIN_WIDTH = 0.1;
+const MAX_WIDTH = 1.0;
+
+/** 버튼 아이콘 — 커서와 같은 펜/지우개 이미지. */
+const toolIcon = { width: 18, height: 18, objectFit: 'contain', verticalAlign: 'middle' } as const;
 
 export function DrawingPanel() {
   const drawingTool = useDesignStore((s) => s.drawingTool);
@@ -31,14 +36,14 @@ export function DrawingPanel() {
           aria-pressed={drawingTool === 'pen'}
           onClick={() => setDrawingTool(drawingTool === 'pen' ? null : 'pen')}
         >
-          ✏️ 펜
+          <img src={pencilUrl} alt="" style={toolIcon} /> 펜
         </Button>
         <Button
           active={drawingTool === 'eraser'}
           aria-pressed={drawingTool === 'eraser'}
           onClick={() => setDrawingTool(drawingTool === 'eraser' ? null : 'eraser')}
         >
-          🧽 지우개
+          <img src={eraserUrl} alt="" style={toolIcon} /> 지우개
         </Button>
       </div>
 
@@ -49,7 +54,7 @@ export function DrawingPanel() {
           aria-label="브러시 굵기"
           min={MIN_WIDTH}
           max={MAX_WIDTH}
-          step={0.5}
+          step={0.1}
           value={brush.width}
           onChange={(e) => setBrush({ width: Number(e.target.value) })}
           style={{ width: '100%', accentColor: palette.primary }}
