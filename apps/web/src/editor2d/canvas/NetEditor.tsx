@@ -7,7 +7,13 @@ import { getNet, sideGridU, orientedTopCrossSection } from '@candle/shared/geome
 import type { Point } from '@candle/shared/geometry';
 import { useDesignStore } from '../../document/store';
 import { palette, fontStack } from '../../ui';
-import { ElementView, PipingRun, elementLocalSize, useImageAssetStore } from '../elements';
+import {
+  ElementView,
+  PipingRun,
+  elementLocalSize,
+  useImageAssetStore,
+  LETTER_FONT_CM,
+} from '../elements';
 import {
   handlePositions,
   pickTopElement,
@@ -51,6 +57,7 @@ export function NetEditor() {
   const scaleElement = useDesignStore((s) => s.scaleElement);
   const rotateElement = useDesignStore((s) => s.rotateElement);
   const deleteElement = useDesignStore((s) => s.deleteElement);
+  const updateLettering = useDesignStore((s) => s.updateLettering);
   const pendingPiping = useDesignStore((s) => s.pendingPiping);
   const setPendingPiping = useDesignStore((s) => s.setPendingPiping);
   const drawingTool = useDesignStore((s) => s.drawingTool);
@@ -73,6 +80,8 @@ export function NetEditor() {
   const erasingRef = useRef(false);
   // 화면 px ÷ 전개도 cm 배율(핸들을 일정 화면 크기로 그리기 위함).
   const [pxPerCm, setPxPerCm] = useState(1);
+  // 레터링 인라인 편집 중인 요소 id(더블클릭으로 진입, 캔버스 위에서 바로 문구 수정).
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // 키보드: Esc로 도구(펜/지우개/파이핑)·선택 해제, Delete/Backspace로 선택 삭제(입력 중 제외).
   useEffect(() => {
@@ -94,9 +103,17 @@ export function NetEditor() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId, deleteElement, pendingPiping, setPendingPiping, drawingTool, setDrawingTool, select]);
 
+  // 선택이 바뀌거나 도구(펜/지우개/파이핑)가 켜지면 인라인 편집 종료.
+  useEffect(() => {
+    if (editingId && (selectedId !== editingId || drawingTool || pendingPiping)) {
+      setEditingId(null);
+    }
+  }, [editingId, selectedId, drawingTool, pendingPiping]);
+
   const net = getNet(shape, spec);
   const sorted = [...elements].sort((a, b) => a.zIndex - b.zIndex);
   const selected = elements.find((el) => el.id === selectedId) ?? null;
+  const editingEl = editingId ? (elements.find((el) => el.id === editingId) ?? null) : null;
 
   const viewW = net.bounds.width + PAD * 2;
   const viewH = net.bounds.height + PAD * 2;
@@ -227,6 +244,28 @@ export function NetEditor() {
     select(null);
   };
 
+  // 더블클릭: 레터링 요소면 캔버스 위에서 바로 문구 편집 모드로 진입.
+  const onDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (pendingPiping || drawingTool) return;
+    const point = toNet(e.clientX, e.clientY);
+    if (!point) return;
+    const pickables: Pickable[] = elements
+      .filter((el) => el.type !== 'drawing')
+      .map((el) => ({
+        id: el.id,
+        transform: el.transform,
+        size: elementLocalSize(el),
+        zIndex: el.zIndex,
+      }));
+    const hitId = pickTopElement(pickables, point);
+    if (!hitId) return;
+    const el = elements.find((x) => x.id === hitId);
+    if (el?.type === 'lettering') {
+      select(hitId);
+      setEditingId(hitId);
+    }
+  };
+
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     // 펜·파이핑 드래그 중: 점을 솎아 경로에 모으고 미리보기 갱신.
     if ((drawingTool === 'pen' || pendingPiping) && strokeRef.current.length > 0) {
@@ -352,6 +391,7 @@ export function NetEditor() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onDoubleClick={onDoubleClick}
     >
       <defs>
         <filter id="net-edit-shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -407,14 +447,17 @@ export function NetEditor() {
         })}
       </g>
 
-      {/* 요소(zIndex 오름차순). 도구 활성 시 요소 위에서도 도구 커서가 보이도록 inherit. */}
-      {sorted.map((el) => (
-        <ElementView
-          key={el.id}
-          element={el}
-          cursor={pendingPiping || drawingTool ? 'inherit' : 'pointer'}
-        />
-      ))}
+      {/* 요소(zIndex 오름차순). 도구 활성 시 요소 위에서도 도구 커서가 보이도록 inherit.
+          인라인 편집 중인 레터링은 아래 입력 오버레이로 대체하므로 그리지 않는다. */}
+      {sorted.map((el) =>
+        el.id === editingId ? null : (
+          <ElementView
+            key={el.id}
+            element={el}
+            cursor={pendingPiping || drawingTool ? 'inherit' : 'pointer'}
+          />
+        ),
+      )}
 
       {/* 파이핑 곡선 라이브 미리보기(그리는 중) — 경로를 따라 모티프 */}
       {strokePreview && strokePreview.length > 0 && pendingPiping && (
@@ -441,8 +484,63 @@ export function NetEditor() {
         />
       )}
 
-      {/* 선택 핸들 (파이핑·손그림 모드에선 숨김) */}
-      {selected && !pendingPiping && !drawingTool && (
+      {/* 레터링 인라인 편집 입력 — 요소 위치·회전·스케일에 맞춘 오버레이 */}
+      {editingEl?.type === 'lettering' &&
+        (() => {
+          const { x, y, scale, rotation } = editingEl.transform;
+          const deg = (rotation * 180) / Math.PI;
+          const { width: w, height: h } = elementLocalSize(editingEl);
+          // 입력 영역은 추정 바운딩박스보다 좌우로 넉넉히 넓혀, 실제 렌더 폭이
+          // 커도(가운데 정렬) 글자 끝이 잘리지 않게 한다.
+          const fw = w + LETTER_FONT_CM * 4;
+          return (
+            <g transform={`translate(${x} ${y}) rotate(${deg}) scale(${scale})`}>
+              <foreignObject x={-fw / 2} y={-h / 2} width={fw} height={h} style={{ overflow: 'visible' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={editingEl.text}
+                    onChange={(ev) => updateLettering(editingEl.id, { text: ev.target.value })}
+                    onPointerDown={(ev) => ev.stopPropagation()}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter' || ev.key === 'Escape') {
+                        ev.preventDefault();
+                        setEditingId(null);
+                      }
+                    }}
+                    onBlur={() => setEditingId(null)}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      textAlign: 'center',
+                      border: 'none',
+                      outline: 'none',
+                      padding: 0,
+                      margin: 0,
+                      background: 'transparent',
+                      fontFamily: editingEl.font,
+                      fontSize: `${LETTER_FONT_CM}px`,
+                      lineHeight: 1,
+                      height: `${LETTER_FONT_CM}px`,
+                      color: editingEl.color,
+                    }}
+                  />
+                </div>
+              </foreignObject>
+            </g>
+          );
+        })()}
+
+      {/* 선택 핸들 (파이핑·손그림·인라인 편집 모드에선 숨김) */}
+      {selected && !pendingPiping && !drawingTool && !editingId && (
         <SelectionOverlay
           element={selected}
           handleR={handleR}
