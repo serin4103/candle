@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import cors from '@fastify/cors';
 import {
   createInMemoryAssetStorage,
   createInMemoryRepository,
@@ -72,6 +73,14 @@ export function buildServer(): FastifyInstance {
   const repo = createRepository(app);
   const service = createDesignService(repo);
   const assetService = createAssetService(createAssetStorage(app));
+
+  // CORS: 프론트가 다른 도메인(Vercel)일 때 브라우저 호출 허용. WEB_ORIGIN(쉼표
+  // 구분)이 있으면 그 출처만, 없으면 모든 출처 허용(MVP). 쿠키 미사용(Bearer 토큰)
+  // 이라 credentials는 불필요 — Authorization 헤더는 기본 허용된다.
+  const webOrigin = process.env.WEB_ORIGIN;
+  void app.register(cors, {
+    origin: webOrigin ? webOrigin.split(',').map((o) => o.trim()) : true,
+  });
 
   registerAuth(app, createAuthVerifier(app));
   app.get('/health', async () => ({ status: 'ok', service: 'candle-api' }));
