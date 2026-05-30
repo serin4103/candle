@@ -55,10 +55,10 @@ export function SharePanel({ session }: { session: ShareSession }) {
       {mode === 'view' ? (
         <>
           <p style={{ margin: 0, fontSize: 13, color: palette.textMuted }}>
-            열람 전용 링크입니다. 복제하면 내 디자인으로 수정할 수 있어요(로그인 필요).
+            열람 전용 링크입니다. 복제하면 새 탭에서 디자인을 편집할 수 있어요(로그인 없이 가능, 저장은 로그인 시).
           </p>
-          <Button variant="primary" disabled={busy} onClick={() => void session.clone()}>
-            {status === 'saving' ? '복제 중…' : '복제해서 수정'}
+          <Button variant="primary" disabled={busy} onClick={() => session.clone()}>
+            복제해서 수정
           </Button>
         </>
       ) : shareLink ? (

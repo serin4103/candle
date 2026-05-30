@@ -1,14 +1,30 @@
 // share/useShareSession — 저장·공유 세션. 진입 경로(`/d/:id`·`/view/:token`)로
 // 디자인을 store에 적재하고, 저장/수정/복제 명령을 제공한다(PRD-M5·S6).
 // 저장은 로그인이 필요하다(서버 401) — App이 로그인 여부로 저장 버튼을 가드한다.
+// 복제는 비로그인으로 가능하다(서버 저장 없이 클라이언트에서 복사 → 새 탭 편집).
 // 디자인 문서 자체는 store가 소유하고, 여기 상태는 세션(모드·토큰·링크) 표현용.
 import { useCallback, useEffect, useState } from 'react';
-import type { ShareLink } from '@candle/shared';
+import type { Design, ShareLink } from '@candle/shared';
 import { useDesignStore } from '../document/store';
-import { saveDesign, loadById, loadByView, updateById, cloneByView } from '../api';
-import { parseRoute, designUrl, navigate, replaceUrl, type ShareMode } from './route';
+import { saveDesign, loadById, loadByView, updateById } from '../api';
+import { parseRoute, designUrl, replaceUrl, type ShareMode } from './route';
 
 type Status = 'loading' | 'idle' | 'saving' | 'error';
+
+/** 복제 핸드오프 키 — 복제 시 디자인을 담아 두고, 새 탭의 '신규' 진입이 읽어 적재. */
+const CLONE_KEY = 'candle:clone';
+
+/** 새 탭이 마운트 시 1회 읽어 가는 복제 디자인. 읽으면 즉시 비운다. */
+function takeClonePayload(): Design | null {
+  try {
+    const raw = localStorage.getItem(CLONE_KEY);
+    if (!raw) return null;
+    localStorage.removeItem(CLONE_KEY);
+    return JSON.parse(raw) as Design;
+  } catch {
+    return null;
+  }
+}
 
 export interface ShareSession {
   mode: ShareMode;
@@ -20,8 +36,8 @@ export interface ShareSession {
   save: () => Promise<void>;
   /** 소유 디자인 수정 저장. */
   update: () => Promise<void>;
-  /** 열람 모드: 복제 후 복제본(`/d/:id`)으로 이동. */
-  clone: () => Promise<void>;
+  /** 열람 모드: 디자인을 복사해 새 탭의 편집 화면으로 연다(비로그인 가능, 서버 저장 X). */
+  clone: () => void;
 }
 
 /**
@@ -47,6 +63,13 @@ export function useShareSession(authReady: boolean): ShareSession {
     let cancelled = false;
     void (async () => {
       try {
+        if (route.mode === 'new') {
+          // 비로그인 복제로 새 탭이 열렸으면, 복사된 디자인을 새 문서로 적재한다.
+          // 새 id를 부여해 독립 문서로 시작(저장 시 서버가 다시 id를 부여하므로 무방).
+          const cloned = takeClonePayload();
+          if (cloned && !cancelled) loadDesign({ ...cloned, id: crypto.randomUUID() });
+          return;
+        }
         if (route.mode === 'design' && route.id) {
           // 소유자 전용 로드는 토큰이 준비된 뒤에만(미준비면 대기 — authReady가
           // true로 바뀌며 이 effect가 다시 실행된다). 토큰 없이 보내면 401.
@@ -106,19 +129,17 @@ export function useShareSession(authReady: boolean): ShareSession {
     }
   }, [designId, getDesignSnapshot]);
 
-  const clone = useCallback(async () => {
-    if (route.mode !== 'view' || !route.token) return;
-    setStatus('saving');
-    setError(null);
+  const clone = useCallback(() => {
+    // 비로그인 복제: 현재 열람 중인 디자인(케이크·요소)을 그대로 복사해 새 탭의
+    // 편집 화면으로 연다. 서버 저장은 하지 않으며, 저장은 새 탭에서 로그인 후 수행.
+    // window.open은 클릭 제스처 내에서 동기로 호출해야 팝업 차단을 피한다.
     try {
-      const result = await cloneByView(route.token);
-      // 복제본은 복제자 소유의 독립 디자인 — 그 편집 URL로 이동(전체 리로드로 재적재).
-      navigate(designUrl(result.design.id));
-    } catch (e) {
-      setError((e as Error).message);
-      setStatus('error');
+      localStorage.setItem(CLONE_KEY, JSON.stringify(getDesignSnapshot()));
+    } catch {
+      // 저장소 접근 불가 시에도 새 탭은 연다(빈 새 디자인으로 시작).
     }
-  }, [route]);
+    window.open(`${window.location.origin}/`, '_blank', 'noopener');
+  }, [getDesignSnapshot]);
 
   return { mode, status, error, shareLink, save, update, clone };
 }
