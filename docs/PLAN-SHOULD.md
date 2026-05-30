@@ -12,8 +12,9 @@
   - `apps/web/src/editor2d` — `canvas`/`tools`/`panels`/`elements`(+`assets`) 구현됨.
   - `apps/web/src/viewer3d` — `meshes`/`texture`(굽기 동기화)/`controls`(`CameraControls`) 구현됨. `decorations`는 `CLAUDE.md`만 있는 **빈 폴더**(S3 대상).
   - `apps/api/src` — `designs`/`share`/`infra` 구현됨. `assets`는 `CLAUDE.md`만 있는 **빈 폴더**(S4 대상).
-- 스택은 Must와 동일: **TypeScript 모노레포**, Zustand, Three.js + R3F, zod, React + Vite, Node 백엔드 + 오브젝트 스토리지.
-- 구현 순서는 CLAUDE.md "구현 순서 3"을 따른다: **PRD-S5 → PRD-S4 → PRD-S1 → PRD-S2 → PRD-S3.**
+  - `apps/web/src/auth`·`apps/web/src/mypage`·`apps/api/src/auth` — `CLAUDE.md`만 있는 **빈 폴더**(S6 대상, 본 계획에서 신설).
+- 스택은 Must와 동일: **TypeScript 모노레포**, Zustand, Three.js + R3F, zod, React + Vite, Node 백엔드 + 오브젝트 스토리지. 인증은 **Supabase Auth(Google OAuth)** 를 추가로 쓴다(S6).
+- 구현 순서는 CLAUDE.md "구현 순서 3"을 따른다: **PRD-S5 → PRD-S4 → PRD-S1 → PRD-S2 → PRD-S3 → PRD-S6.**
 
 ## 1. 아키텍처 불변식 (모든 Phase에서 강제)
 
@@ -187,6 +188,75 @@ removeDecoration3D: (id: string) => void;
 
 ---
 
+## Phase 6 — PRD-S6: 로그인(Google) & 소유권 기반 저장 & 마이페이지 (`auth` + `designs` + `web/auth` + `web/mypage`)
+
+**목표**: Google 로그인으로 작성자를 식별하고, 디자인을 **소유자(ownerId)** 에 귀속해 저장한다. 저장하면 편집 URL이 `/d/:id`가 되고, 마이페이지에서 저장 디자인을 모아 보고 다시 열어 편집을 이어간다. 편집 링크(editToken)는 제거하고 편집 권한을 소유권으로 대체한다. **열람 링크(viewToken)·복제 흐름은 유지.**
+**의존**: Must Phase 5(저장·공유 토대). 인증은 **Supabase Auth(이미 백엔드가 Supabase 사용)** 에 위임. Should 다른 Phase(S1~S5)와 독립이라 병렬 가능 — 주로 다른 폴더(`auth`/`mypage`/`api/auth`)를 건드린다.
+
+> **설계 결정(확정)**: 인증 = Supabase Auth + **Google OAuth**. 공유 = **열람 링크 유지, 편집 링크 제거**. 비로그인 사용자도 편집·3D·열람은 가능하고 **저장만 로그인 필요**.
+
+### 6.0 Supabase / Google OAuth 설정 체크리스트 (코드 외 인프라 — 배포 작동의 전제)
+- [ ] Google Cloud Console: OAuth 클라이언트 생성, **승인된 리디렉션 URI = `https://<project>.supabase.co/auth/v1/callback`** 등록(로컬·배포 공통, Supabase 주소라 도메인 무관).
+- [ ] Supabase 대시보드 → Authentication → Providers: **Google 사용 설정**(client id/secret 입력).
+- [ ] Supabase → Authentication → URL Configuration: `Site URL` + `Redirect URLs`에 **localhost(`http://localhost:5173`)와 배포 도메인 둘 다** 등록.
+- [ ] 환경변수: 프론트 `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY`, 백엔드 JWT 검증용 시크릿(또는 `supabase.auth.getUser`로 검증).
+- [ ] 운영 전환: Google OAuth 동의화면 "테스트 → 게시".
+
+### 6.1 백엔드 인증 `apps/api/src/auth`
+| 작업 | 산출물 |
+|---|---|
+| JWT 검증 미들웨어 | Supabase 발급 access token(Authorization: Bearer)을 검증하고 `userId`(JWT `sub`)를 요청에 주입. 토큰 없음/무효 → 401. |
+| 인증 가드 | 저장·수정·목록·복제 라우트에 적용. 열람(viewToken)·열람 로드는 비인증 허용. |
+
+### 6.2 영속화·도메인 변경 (`infra` + `designs` + `share`)
+| 작업 | 산출물 |
+|---|---|
+| 스키마 마이그레이션 | `designs` 테이블에 `owner_id text not null` 추가. `tokens` 테이블은 **view 역할만** 사용(edit 행 발급 중단). `docs/supabase-schema.sql` 갱신 + 마이그레이션 SQL. |
+| 저장소 계약 확장 | `DesignRepository`에 `saveDesign(design, ownerId)`·`listDesignsByOwner(ownerId)`·`getOwner(designId)` 추가. `issueShareLink`는 viewToken만 발급(editToken 제거). |
+| designs 서비스 개정 | `create(input, ownerId)` → ownerId 귀속·저장·viewToken 발급. `getById(id, userId)`/`updateById(id, userId, input)` → **소유자 일치 검증**(불일치 403). `listMine(userId)`. `cloneByView`는 로그인 사용자에게 복제본을 **그 사용자 소유로** 부여. |
+| editToken 경로 제거 | `getByEdit`/`updateByEdit`와 `/designs/by-edit/*` 라우트 삭제(Must Phase 5가 만든 것을 걷어냄). |
+
+### 6.3 API 라우트 (개정안)
+```
+POST   /designs              (auth)        → 저장, ownerId 귀속, { design, viewToken } 반환 (design.id = /d/:id)
+GET    /designs              (auth)        → 내 디자인 목록(마이페이지)
+GET    /designs/:id          (auth, 소유자) → 편집용 로드
+PUT    /designs/:id          (auth, 소유자) → 수정 저장 (id 유지)
+GET    /designs/by-view/:viewToken          → 비로그인 열람 로드(유지)
+POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewToken, 복제자 소유
+```
+- 소유자 불일치 → 403, 없음 → 404. 토큰 미존재/만료 → 404(기존 유지).
+- `ShareLink` 스키마에서 `editToken` 제거(또는 마이그레이션 기간 optional). 소유권은 Design **문서가 아니라 DB 메타**(designs.owner_id)로 둔다 — 디자인 문서는 콘텐츠만.
+
+### 6.4 프론트 `apps/web/src/auth` + `mypage` + 기존 `share`/`api`/`App`
+| 작업 | 산출물 |
+|---|---|
+| Supabase 클라이언트·세션 | `auth/`에 anon 키 Supabase 클라이언트, `useAuthSession`(user/session·`signInWithGoogle`·`signOut`). 세션 access token을 `api` 호출 Authorization 헤더에 부착. |
+| 로그인/로그아웃 팝업 | `auth/`에 로그인 다이얼로그(Google로 계속하기)·로그인 상태 사용자 메뉴(드롭다운, 로그아웃) 컴포넌트. 상단바 트리거가 이 팝업을 연다. |
+| 상단바 버튼(셸) | `App.tsx` 헤더에 **로그인/로그아웃(또는 아바타)**, **저장**, **마이페이지** 버튼 **배치**(전개도/3D 토글과 동일하게 셸 소유). 로그인 트리거는 `auth/` 팝업을 열고, 저장은 `share` 세션, 마이페이지는 `/mypage` 이동에 연결. 비로그인 시 저장 버튼은 로그인 유도. |
+| 라우팅 | `share/route.ts`에 `/d/:id`(편집·소유자) 파싱 추가. `/view/:token` 유지, `/edit/:token` 제거. `/mypage` 경로. |
+| 세션 훅 개정 | `useShareSession`: 저장은 로그인 필요 → 성공 시 `/d/:id`로 URL 승격. 편집 진입은 `/d/:id` + 소유권 로드(`GET /designs/:id`). editToken 분기 제거. |
+| API 클라이언트 개정 | `loadById`·`updateById`·`listMyDesigns` 추가, `loadByEdit`/`updateByEdit` 제거, `saveDesign` 반환을 `{ design, viewToken }`로. |
+| 마이페이지 UI | `mypage/`에 저장 디자인 목록(썸네일/이름/수정일) → 선택 시 `/d/:id`로 이동해 편집 이어가기. |
+
+**완료 기준 (PRD-S6 수용 기준)**:
+- [ ] 비로그인 상태로 편집·3D 확인·열람 링크 열기가 그대로 동작한다(로그인 강제 없음).
+- [ ] Google 로그인/로그아웃이 로컬·배포에서 동작한다(리디렉션 URL 등록 후).
+- [ ] 로그인 사용자가 디자인을 저장하면 편집 URL이 `/d/:id`로 바뀐다(고유 id 부여).
+- [ ] 비로그인 상태에서 저장 시도는 차단되고 로그인으로 유도된다(백엔드 401, 프론트 안내).
+- [ ] 저장한 디자인은 소유자만 `/d/:id`로 열어 수정할 수 있다(타인/비로그인 접근 403/거부).
+- [ ] 마이페이지에서 내 저장 디자인 목록이 보이고, 선택 시 해당 편집 페이지로 이동해 편집을 이어갈 수 있다.
+- [ ] 열람 링크(viewToken)로 비로그인 열람·복제가 유지되고, 복제본은 복제자 소유의 새 디자인이 된다.
+- [ ] editToken 경로(`/edit/:token`, `/designs/by-edit/*`)가 제거됐다(잔존 참조 0건 — grep 점검).
+- [ ] designs 서비스 단위 테스트: 소유자 일치/불일치(403)·내 목록·복제 소유권·비로그인 저장 차단.
+
+### 6.5 리스크 / 주의
+- **순서 의존**: 소유권 저장(6.2)은 인증(6.1)이 있어야 의미가 있다 → 6.1 → 6.2 → 6.3 → 6.4 순. 기존 Must Phase 5의 editToken 코드를 6.2/6.3에서 걷어낸다.
+- **마이그레이션**: 기존에 editToken으로 저장된 디자인은 ownerId가 없다. MVP 단계라 데이터가 적으면 재설정/삭제로 처리(데이터 보존이 필요하면 별도 백필 작업 — 범위 밖이면 보고).
+- **JWT 검증 위치는 `auth/`에 격리**: 라우트는 `userId`만 받는다(레이어 경계 — 도메인은 인증 세부를 모른다).
+
+---
+
 ## 6. 의존 그래프 / 권장 순서
 
 ```
@@ -194,14 +264,16 @@ removeDecoration3D: (id: string) => void;
   ├─ Phase 1 PRD-S5 규격조정 (cake·geometry·meshes·texture)   ← 독립
   ├─ Phase 2 PRD-S4 이미지 업로드 (api/assets·web/api·editor2d) ← 독립(Must Phase5 전제)
   ├─ Phase 3 PRD-S1 손그림 (editor2d·texture)                  ← 독립
-  └─ Phase 4 PRD-S2 3D 직접배치 (controls·geometry)            ← 리스크 PoC
-        └─ Phase 5 PRD-S3 3D 데코 (decorations)                ← S2의 표면 픽 재사용
+  ├─ Phase 4 PRD-S2 3D 직접배치 (controls·geometry)            ← 리스크 PoC
+  │     └─ Phase 5 PRD-S3 3D 데코 (decorations)                ← S2의 표면 픽 재사용
+  └─ Phase 6 PRD-S6 로그인·소유권 저장·마이페이지 (auth·designs)  ← 독립(Must Phase5 전제)
 ```
 
-- **CLAUDE.md 권장 순서**(S5→S4→S1→S2→S3)를 기본 진행 순서로 둔다.
+- **CLAUDE.md 권장 순서**(S5→S4→S1→S2→S3→S6)를 기본 진행 순서로 둔다.
 - **Phase 1·2·3 은 서로 독립적**이라 병렬 가능: 각각 주로 다른 폴더를 건드린다 — S5=`cake`/`geometry`/`meshes`, S4=`api/assets`/`web/api`/`editor2d/panels`, S1=`editor2d/tools`. **단, 셋 다 `viewer3d/texture` 굽기를 건드릴 수 있으니** texture 변경은 순차 머지 또는 충돌 조정 필요.
 - **Phase 4(S2) 는 리스크 선검증** — `netPointForUV` 역변환을 작은 테스트로 먼저 통과시키고 본 구현에 들어간다. 막히면 원형·사각으로 축소 후 보고.
 - **Phase 5(S3) 는 Phase 4 이후** — 표면 위 좌표 픽킹(레이캐스트)을 S2에서 마련한 것을 재사용한다.
+- **Phase 6(S6) 는 독립** — Must Phase 5만 전제하며 S1~S5와 병렬 가능. 이 Phase에서 editToken을 소유권으로 대체한다(다른 Phase는 영향 없음).
 
 ## 7. 교차 검증 (완료 정의)
 
@@ -209,11 +281,13 @@ removeDecoration3D: (id: string) => void;
 - [ ] **좌표 단일화 grep**: S1 펜 경로·S2 3D 픽·S5 재계산이 전부 `geometry` 경유. `editor2d`/`viewer3d`에 인라인 좌표 수학 0건.
 - [ ] **역변환 round-trip**: `netPointForUV(uvForNetPoint(p)) ≈ p` (원형/사각 필수, 하트 통과 또는 축소 보고).
 - [ ] **레이어 경계 린트**: `tools`/`store`/`texture`/`controls`(ViewModel부)에서 three/r3f/canvas import 0건 유지.
-- [ ] **공유 왕복 확장**: 이미지(S4)·손그림(S1)·데코(S3)·규격(S5)이 포함된 디자인을 저장→editToken 수정→viewToken 열람·복제→복제본 독립 수정까지 보존.
+- [ ] **공유 왕복 확장**: 이미지(S4)·손그림(S1)·데코(S3)·규격(S5)이 포함된 디자인을 저장→편집 수정→viewToken 열람·복제→복제본 독립 수정까지 보존. *(S6 적용 전 편집은 editToken, S6 적용 후 소유권(`/d/:id`) 경로)*
+- [ ] **소유권 왕복(S6)**: 로그인 저장 → `/d/:id` 수정(소유자) → 타인/비로그인 수정 차단(403/401) → viewToken 열람·복제 → 복제본은 복제자 소유.
+- [ ] **editToken 제거 점검(S6)**: `/edit/:token`·`/designs/by-edit/*`·`editToken` 잔존 참조 0건(grep).
 - [x] **자산 업로드 한계**: 50MB 초과·비허용 mime 거부가 회귀 없이 유지. *(Phase 2: api 라우트 413/415 테스트 + 실제 HTTP 415)*
 
 ## 8. 범위 밖 (혼동 방지)
 
 - **Could 기능은 본 계획 밖**: undo/redo(PRD-C2, `document/history`), 라이브러리 검색·템플릿(PRD-C1), 3D 내보내기(PRD-C3), 링크 만료·접근 제어(PRD-C4). 단 S1의 "1획=1요소·1커밋" 규칙은 미래 C2 undo를 막지 않도록 유지한다.
-- **Won't 그대로 제외**: 주문·결제, 로그인·계정, 실시간 공동 편집, 네이티브 앱, 케이크 외 제품.
+- **Won't 그대로 제외**: 주문·결제, 자체 비밀번호·이메일 계정 관리(로그인은 PRD-S6에서 Google OAuth로 도입됨), 실시간 공동 편집, 네이티브 앱, 케이크 외 제품.
 - **확장 훅 유지**: S3 데코 타입은 `Decoration3D.type`의 enum(`candle`/`topper`/`fruit`)에 한정하되, 미래 데코 추가를 막지 않도록 enum 한 곳에서만 늘린다. S4 `Asset`·S2 `netPointForUV`는 공용(`shared`)에 두어 백엔드·다른 뷰가 재사용할 수 있게 한다.

@@ -147,6 +147,8 @@ Zustand 스토어. **액션은 geometry만 호출, 렌더 기술 미import.**
 
 ## Phase 5 — PRD-M5: 서버 저장 & 링크 공유 (비로그인) (`api` + `web/share`)
 
+> **참고**: 로그인은 Must가 아니라 **Should(PRD-S6)** 로 분리됐다. 본 Phase는 비로그인 + 편집/열람 토큰 모델로 완결되며, 로그인 도입 시 편집 링크(editToken)를 소유권으로 대체하는 작업은 [PLAN-SHOULD.md](PLAN-SHOULD.md) Phase 6에서 다룬다.
+
 **의존**: Phase 1(스키마). 백엔드와 프론트 share/api 클라이언트.
 
 ### 5.1 백엔드 `apps/api/src`
@@ -184,6 +186,7 @@ Phase 0 부트스트랩
 ```
 
 - **Phase 5(M5)** 는 Phase 1의 스키마만 있으면 2~4와 **병렬** 진행 가능(다른 작업자/세션).
+- **로그인(PRD-S6)** 은 Must가 아니라 Should다 — [PLAN-SHOULD.md](PLAN-SHOULD.md) Phase 6에서 Phase 5 위에 얹어 editToken을 소유권으로 대체한다.
 - **하트 PoC(1.2)** 가 막히면: 원형·사각 2종으로 M1 선출시 → 하트는 Should 직후로 이관(루트 PRD 변경은 보고 후).
 
 ## 7. 교차 검증(완료 정의)
