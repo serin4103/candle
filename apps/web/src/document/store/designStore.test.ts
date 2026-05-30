@@ -172,7 +172,7 @@ describe('손그림 (PRD-S1)', () => {
     useDesignStore.setState({ pendingPiping: null, drawingTool: null });
   });
 
-  it('addDrawing은 전개도 좌표 점열·항등 transform의 drawing 요소를 추가한다', () => {
+  it('addDrawing은 경계상자 중심을 transform 원점으로, 점은 로컬 좌표로 저장한다', () => {
     const points = [
       { x: 10, y: 20 },
       { x: 12, y: 25 },
@@ -181,10 +181,14 @@ describe('손그림 (PRD-S1)', () => {
     const el = useDesignStore.getState().design.elements.find((e) => e.id === id);
     expect(el?.type).toBe('drawing');
     if (el?.type === 'drawing') {
-      expect(el.points).toEqual(points); // 좌표 보존(전개도 좌표 그대로)
+      // 중심 (11, 22.5) 기준 로컬 좌표 — 일반 요소처럼 선택·이동 가능하게.
+      expect(el.points).toEqual([
+        { x: -1, y: -2.5 },
+        { x: 1, y: 2.5 },
+      ]);
       expect(el.color).toBe('#123456');
       expect(el.width).toBe(3);
-      expect(el.transform).toEqual({ x: 0, y: 0, scale: 1, rotation: 0 });
+      expect(el.transform).toEqual({ x: 11, y: 22.5, scale: 1, rotation: 0 });
     }
   });
 

@@ -207,8 +207,9 @@ export function elementLocalSize(element: Element): { width: number; height: num
         : { width: ILLUSTRATION_SIZE * aspect, height: ILLUSTRATION_SIZE };
     }
     case 'drawing': {
-      // 손그림(PRD-S1) — 점열의 경계 상자 치수(스케일 1). 점이 비면 0.
-      if (element.points.length === 0) return { width: 0, height: 0 };
+      // 손그림(PRD-S1) — 점열 경계 상자 + 획 굵기만큼 여유(번짐 + 직선 획도 선택 가능).
+      const w = element.width;
+      if (element.points.length === 0) return { width: w, height: w };
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const p of element.points) {
         if (p.x < minX) minX = p.x;
@@ -216,7 +217,7 @@ export function elementLocalSize(element: Element): { width: number; height: num
         if (p.y < minY) minY = p.y;
         if (p.y > maxY) maxY = p.y;
       }
-      return { width: maxX - minX, height: maxY - minY };
+      return { width: maxX - minX + w, height: maxY - minY + w };
     }
   }
 }

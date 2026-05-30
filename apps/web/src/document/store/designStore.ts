@@ -107,7 +107,11 @@ export interface DesignState {
   updatePiping: (id: string, patch: PipingPatch) => void;
   /** 일러스트 색상 교체. */
   updateIllustration: (id: string, patch: IllustrationPatch) => void;
-  /** 손그림 1획 추가(PRD-S1). 점열은 전개도 절대 좌표, transform은 항등. 추가한 id 반환. */
+  /**
+   * 손그림 1획 추가(PRD-S1). 파이핑과 동일하게 절대 좌표 점열을 경계상자 중심 기준
+   * 로컬 좌표로 바꿔 transform.x·y에 중심을 둔다(일반 요소처럼 선택·이동·크기·회전).
+   * 추가한 id 반환.
+   */
   addDrawing: (points: Point[], color: string, width: number) => string;
   /**
    * 파이핑 경로 추가 — 전개도 절대 좌표 점열을 경계상자 중심 기준 로컬 좌표로 바꿔
@@ -333,14 +337,18 @@ export const useDesignStore = create<DesignState>((set, get) => {
     ),
 
   // addElement를 통해 커밋되므로(중복 방지) 별도 커밋 래핑은 두지 않는다.
-  addDrawing: (points, color, width) =>
-    get().addElement({
+  addDrawing: (points, color, width) => {
+    const c = centerOfPoints(points);
+    return get().addElement({
       type: 'drawing',
-      points: points.map((p) => ({ x: p.x, y: p.y })),
+      // 파이핑과 동일하게 경계상자 중심을 transform 원점으로, 점은 로컬 좌표로 저장.
+      // 그래야 일반 요소처럼 선택·이동·크기·회전 핸들이 그대로 동작한다.
+      points: points.map((p) => ({ x: p.x - c.x, y: p.y - c.y })),
       color,
       width,
-      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
-    }),
+      transform: { x: c.x, y: c.y, scale: 1, rotation: 0 },
+    });
+  },
 
   addPiping: (points, variant, color, width) => {
     const c = centerOfPoints(points);

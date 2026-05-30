@@ -3,7 +3,12 @@
 // tools(ViewModel)로 위임한다. 계산 금지: 좌표 변환은 SVG CTM, 히트테스트·
 // 제스처 수학은 tools/shared-geometry. store를 구독해 렌더만 한다.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getNet, sideGridU, orientedTopCrossSection } from '@candle/shared/geometry';
+import {
+  getNet,
+  sideGridU,
+  orientedTopCrossSection,
+  applyForwardRotation,
+} from '@candle/shared/geometry';
 import type { Point } from '@candle/shared/geometry';
 import { useDesignStore } from '../../document/store';
 import { palette, fontStack } from '../../ui';
@@ -161,10 +166,24 @@ export function NetEditor() {
   };
 
   // 지우개: 점에 닿은 획(드로잉 요소) 하나를 삭제(획 단위, PRD-S1).
+  // 손그림도 이동·크기·회전될 수 있으므로, 로컬 점열을 transform(스케일·회전·평행이동)
+  // 으로 전개도 좌표에 옮긴 뒤 히트 테스트한다(굵기도 스케일 반영).
   const eraseAt = (point: Point) => {
     const strokes: Strokelike[] = elements.flatMap((el) =>
       el.type === 'drawing'
-        ? [{ id: el.id, points: el.points, width: el.width, zIndex: el.zIndex }]
+        ? [
+            {
+              id: el.id,
+              points: el.points.map((p) =>
+                applyForwardRotation(el.transform, {
+                  x: p.x * el.transform.scale,
+                  y: p.y * el.transform.scale,
+                }),
+              ),
+              width: el.width * el.transform.scale,
+              zIndex: el.zIndex,
+            },
+          ]
         : [],
     );
     const id = pickStrokeAt(strokes, point);
@@ -220,16 +239,14 @@ export function NetEditor() {
       }
     }
 
-    // 2) 요소 본체 picking(위에 있는 것 우선). 손그림은 선택 대상 제외(획 단위
-    //    편집은 펜/지우개 도구로만 — S1 범위).
-    const pickables: Pickable[] = elements
-      .filter((el) => el.type !== 'drawing')
-      .map((el) => ({
-        id: el.id,
-        transform: el.transform,
-        size: elementLocalSize(el),
-        zIndex: el.zIndex,
-      }));
+    // 2) 요소 본체 picking(위에 있는 것 우선). 손그림도 도구가 꺼져 있을 땐
+    //    일반 요소처럼 선택·이동·크기·회전한다(획 단위 추가/지우개는 펜·지우개 도구로).
+    const pickables: Pickable[] = elements.map((el) => ({
+      id: el.id,
+      transform: el.transform,
+      size: elementLocalSize(el),
+      zIndex: el.zIndex,
+    }));
     const hitId = pickTopElement(pickables, point);
     if (hitId) {
       select(hitId);

@@ -106,8 +106,8 @@ export function pipingMarkup(
 }
 
 /**
- * 손그림 마크업 (PRD-S1) — 절대 전개도 좌표 점열을 잇는 polyline.
- * DrawingElement.transform은 항등이라 inner=group이 같은 절대 좌표를 그린다.
+ * 손그림 마크업 (PRD-S1) — 로컬 좌표(중심 기준) 점열을 잇는 polyline.
+ * 파이핑처럼 group transform(translate=중심)이 전개도 위치를 맡는다.
  * 점이 1개뿐이면 점(원)으로, 0개면 빈 마크업.
  */
 function drawingMarkup(element: Extract<Element, { type: 'drawing' }>): string {
