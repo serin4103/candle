@@ -42,6 +42,8 @@ const STROKE_PX = 1.2; // 선택 외곽선·핸들 테두리 두께(px)
 interface ActiveGesture {
   gesture: Gesture;
   elementId: string;
+  /** 제스처 종료 시 히스토리에 남길 커맨드 라벨(PRD-C2). */
+  label: string;
 }
 
 export function NetEditor() {
@@ -62,6 +64,9 @@ export function NetEditor() {
   const setDrawingTool = useDesignStore((s) => s.setDrawingTool);
   const brush = useDesignStore((s) => s.brush);
   const addDrawing = useDesignStore((s) => s.addDrawing);
+  // 연속 제스처를 1커밋으로 묶기 위한 트랜잭션 경계(PRD-C2).
+  const beginTransaction = useDesignStore((s) => s.beginTransaction);
+  const commitTransaction = useDesignStore((s) => s.commitTransaction);
   // 이미지 자산이 비동기로 해석되면(version) 요소 마크업을 다시 그린다(PRD-S4).
   const imageVersion = useImageAssetStore((s) => s.version);
 
@@ -170,9 +175,10 @@ export function NetEditor() {
       return;
     }
 
-    // 0b) 지우개: 누른 즉시 + 드래그하며 닿는 획을 삭제한다.
+    // 0b) 지우개: 누른 즉시 + 드래그하며 닿는 획을 삭제한다. 한 드래그=1커밋.
     if (drawingTool === 'eraser') {
       erasingRef.current = true;
+      beginTransaction();
       eraseAt(point);
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
@@ -195,7 +201,12 @@ export function NetEditor() {
           handle === 'rotate'
             ? beginRotate(selected.transform)
             : beginScale(selected.transform, size, handle);
-        activeRef.current = { gesture, elementId: selected.id };
+        beginTransaction();
+        activeRef.current = {
+          gesture,
+          elementId: selected.id,
+          label: handle === 'rotate' ? '회전' : '크기 조절',
+        };
         e.currentTarget.setPointerCapture(e.pointerId);
         return;
       }
@@ -215,7 +226,8 @@ export function NetEditor() {
     if (hitId) {
       select(hitId);
       const el = elements.find((x) => x.id === hitId)!;
-      activeRef.current = { gesture: beginMove(el.transform, point), elementId: hitId };
+      beginTransaction();
+      activeRef.current = { gesture: beginMove(el.transform, point), elementId: hitId, label: '요소 이동' };
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
     }
@@ -276,9 +288,10 @@ export function NetEditor() {
       releaseCapture(e);
       return;
     }
-    // 지우개 드래그 종료.
+    // 지우개 드래그 종료 → 지운 획들을 1커밋으로 묶는다.
     if (erasingRef.current) {
       erasingRef.current = false;
+      commitTransaction('획 지우기');
       releaseCapture(e);
       return;
     }
@@ -303,6 +316,8 @@ export function NetEditor() {
       return;
     }
     if (activeRef.current) {
+      // 드래그 동안 누적된 이동/스케일/회전을 커맨드 1건으로 커밋.
+      commitTransaction(activeRef.current.label);
       activeRef.current = null;
       if (e.currentTarget.hasPointerCapture(e.pointerId)) {
         e.currentTarget.releasePointerCapture(e.pointerId);
@@ -311,6 +326,9 @@ export function NetEditor() {
   };
 
   const onPointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
+    // 열린 트랜잭션은 반드시 닫는다 — 안 닫으면 이후 자동 커밋이 영구 보류된다.
+    // (변화가 없으면 store가 no-op으로 무시하므로 무해.)
+    if (activeRef.current || erasingRef.current) commitTransaction('편집');
     drawStartRef.current = null;
     setDrawEnd(null);
     activeRef.current = null;

@@ -132,14 +132,14 @@ commitTransaction: (label: string) => void;  // before≠after면 커맨드 1건
 > View는 `beginTransaction`/`commitTransaction`만 호출한다 — 스냅샷·diff 계산은 store/history가 한다.
 
 **완료 기준**:
-- [ ] 이산 동작 1회(요소 추가·삭제·색상 변경·레터링 변경·레이어 순서) → `undo` 1회로 직전 디자인이 복원된다 (store 단위 테스트).
-- [ ] `redo`로 되돌린 동작이 다시 적용된다 (store 단위 테스트).
-- [ ] 드래그 이동(트랜잭션 중 `moveElement` N회) → `undo` 1회로 드래그 **전체**가 한 번에 되돌려진다 (begin→move×N→commit 시뮬레이션 테스트).
-- [ ] 연속 지우개(여러 `deleteElement`) → `undo` 1회로 지운 획이 모두 복원된다 (테스트).
-- [ ] 표현 상태 전용 액션(`select`, `setViewport`, `setDrawingTool`, `setBrush`, `setPendingPiping`)은 히스토리 엔트리를 만들지 않는다 (`canUndo` 불변 확인 테스트).
-- [ ] `loadDesign` 호출 후 `canUndo`·`canRedo`가 모두 `false`다 (테스트).
-- [ ] `undo`로 삭제됐던 선택 요소가 사라지면 `selectedId`가 `null`로 정리되고, `viewport`는 변하지 않는다 (테스트).
-- [ ] 런타임: 2D 캔버스에서 드래그 이동 후 1회 되돌리기로 원위치 복귀 확인.
+- [x] 이산 동작 1회(요소 추가·삭제·색상 변경·레터링 변경·레이어 순서) → `undo` 1회로 직전 디자인이 복원된다 (store 단위 테스트). *(`store/history.test.ts` "요소 추가 → undo/redo", "색상 변경 → undo")*
+- [x] `redo`로 되돌린 동작이 다시 적용된다 (store 단위 테스트). *(`history.test.ts` "요소 추가 → … redo로 재적용")*
+- [x] 드래그 이동(트랜잭션 중 `moveElement` N회) → `undo` 1회로 드래그 **전체**가 한 번에 되돌려진다 (begin→move×N→commit 시뮬레이션 테스트). *(`history.test.ts` "드래그 이동(move N회) → undo 1회")*
+- [x] 연속 지우개(여러 `deleteElement`) → `undo` 1회로 지운 획이 모두 복원된다 (테스트). *(`history.test.ts` "트랜잭션 중 이산 자동 커밋 보류 … 연속 지우개 모사")*
+- [x] 표현 상태 전용 액션(`select`, `setViewport`, `setDrawingTool`, `setBrush`, `setPendingPiping`)은 히스토리 엔트리를 만들지 않는다 (`canUndo` 불변 확인 테스트). *(`history.test.ts` "표현 상태 제외")*
+- [x] `loadDesign` 호출 후 `canUndo`·`canRedo`가 모두 `false`다 (테스트). *(`history.test.ts` "loadDesign은 히스토리를 초기화한다")*
+- [x] `undo`로 삭제됐던 선택 요소가 사라지면 `selectedId`가 `null`로 정리되고, `viewport`는 변하지 않는다 (테스트). *(`history.test.ts` "undo로 선택 요소가 사라지면 selectedId=null, viewport 불변")*
+- [ ] 런타임: 2D 캔버스에서 드래그 이동 후 1회 되돌리기로 원위치 복귀 확인. *(드래그→undo 동작은 위 테스트로 증명. 라이브 add/commit 경로는 dev 서버에서 콘솔 에러 없이 동작 확인. 단, **사용자向 undo 트리거(단축키·버튼)는 Phase 3에서 추가**되므로 UI 조작 기반 런타임 확인은 Phase 3로 미룸.)
 
 ---
 
@@ -186,11 +186,11 @@ Phase 1 history 코어 (순수 커맨드 스택)
 
 ## 7. 교차 검증 (완료 정의)
 
-- [ ] **연속 제스처 1커밋**: 드래그 이동/스케일/회전/연속 지우개가 각각 `undo` 1회로 통째 복원된다 (Phase 2 테스트 + 런타임).
-- [ ] **표현 상태 분리**: `select`/`setViewport`/뷰 전환/`drawingTool` 변경이 히스토리에 남지 않는다 (`canUndo` 불변 grep/test).
-- [ ] **동기화 회귀**: `undo`/`redo`로 `design`이 바뀌면 3D 텍스처가 재생성된다 — 2D에서 요소 추가→3D 전환→undo→3D에서 사라짐 확인(store 구독 경로 그대로, undo 전용 코드 없음).
-- [ ] **레이어 경계 린트**: `document/history` 코어에 three/r3f/canvas/react import 0건.
-- [ ] **로드 시 초기화**: 공유/저장 디자인 `loadDesign` 후 undo가 이전 문서로 넘어가지 않는다.
+- [x] **연속 제스처 1커밋**: 드래그 이동/스케일/회전/연속 지우개가 각각 `undo` 1회로 통째 복원된다 (Phase 2 테스트 + 런타임). *(트랜잭션 테스트로 이동·지우개 검증. 스케일/회전도 동일 트랜잭션 경로. 런타임 UI 조작은 Phase 3.)*
+- [x] **표현 상태 분리**: `select`/`setViewport`/뷰 전환/`drawingTool` 변경이 히스토리에 남지 않는다 (`canUndo` 불변 grep/test). *(`history.test.ts` "표현 상태 제외" — commit 미적용)*
+- [ ] **동기화 회귀**: `undo`/`redo`로 `design`이 바뀌면 3D 텍스처가 재생성된다 — 2D에서 요소 추가→3D 전환→undo→3D에서 사라짐 확인(store 구독 경로 그대로, undo 전용 코드 없음). *(undo가 `design`을 store에 set하므로 기존 구독 경로 그대로 — UI 트리거가 생기는 Phase 3에서 시각 확인.)*
+- [x] **레이어 경계 린트**: `document/history` 코어에 three/r3f/canvas/react import 0건. *(Phase 1 확인 유지 + `eslint .` 통과)*
+- [x] **로드 시 초기화**: 공유/저장 디자인 `loadDesign` 후 undo가 이전 문서로 넘어가지 않는다. *(`history.test.ts` "loadDesign은 히스토리를 초기화한다")*
 
 ## 8. 범위 밖 (혼동 방지)
 
