@@ -129,16 +129,12 @@ export function App() {
           }}
         >
           <SharePanel session={session} />
-          {!readOnly && (
+          {/* 편집 패널(케이크 모양·요소·손그림 추가)은 전개도(2D) 뷰 전용 — 3D 뷰는 읽기 전용이라 숨긴다(PRD-M4). */}
+          {!readOnly && view === 'net' && (
             <>
               <CakeControls />
-              {/* 요소·손그림 추가 패널은 전개도(2D) 뷰 전용 — 3D 뷰는 읽기 전용이라 숨긴다(PRD-M4). */}
-              {view === 'net' && (
-                <>
-                  <LibraryPanel />
-                  <DrawingPanel />
-                </>
-              )}
+              <LibraryPanel />
+              <DrawingPanel />
             </>
           )}
         </div>
@@ -155,7 +151,8 @@ export function App() {
         >
           {view === 'net' ? <NetEditor /> : <CakeViewer3D />}
         </section>
-        {!readOnly && (
+        {/* 선택 요소 속성 패널도 2D 편집 전용 — 3D 읽기 전용 뷰에서는 숨긴다(PRD-M4). */}
+        {!readOnly && view === 'net' && (
           <div style={{ width: 228, flexShrink: 0, overflowY: 'auto' }}>
             <PropertiesPanel />
           </div>
