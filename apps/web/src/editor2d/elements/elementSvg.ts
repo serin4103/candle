@@ -9,8 +9,8 @@ import {
   illustrationDataUri,
   elementLocalSize,
   ILLUSTRATION_SIZE,
-  PIPING_HEIGHT,
-  PIPING_UNIT,
+  DEFAULT_PIPING_WIDTH,
+  pipingCount,
   LETTER_FONT_CM,
 } from './catalog';
 import { getImageAsset } from './imageAssets';
@@ -31,50 +31,65 @@ function n(value: number): string {
 }
 
 /**
+ * 물방울 모티프 path — 박스(가로·세로 = s) 중심 기준, 끝이 위(-y)로 뾰족한 드롭.
+ * 아래쪽 반원(반지름 r)에 뾰족한 꼭지를 얹은 형태.
+ */
+function teardropPath(s: number): string {
+  const half = s / 2;
+  const r = s * 0.42;
+  const cy = half - r; // 불룩한 아래쪽 원의 중심 y(바닥이 +half에 닿도록)
+  const tipY = -half; // 꼭지(위)
+  const cx = r * 0.85; // 꼭지 부근 제어점 가로 도달
+  return (
+    `M 0 ${n(tipY)}` +
+    ` C ${n(-cx)} ${n(tipY + s * 0.34)} ${n(-r)} ${n(cy - r * 0.55)} ${n(-r)} ${n(cy)}` +
+    ` A ${n(r)} ${n(r)} 0 0 0 ${n(r)} ${n(cy)}` +
+    ` C ${n(r)} ${n(cy - r * 0.55)} ${n(cx)} ${n(tipY + s * 0.34)} 0 ${n(tipY)} Z`
+  );
+}
+
+/**
  * 파이핑 런 마크업 — 중심(0,0) 기준 length만큼 가로로 펼친 모티프 반복.
  * ElementView의 PipingRun(JSX)과 동일한 도형을 문자열로 만든다.
+ * width는 굵기(모티프 지름·스캘럽 두께). 원형·물방울은 점 간격 = 지름으로
+ * 빈틈 없이(서로 접하게) 배치한다.
  */
-export function pipingMarkup(variant: string, color: string, length: number): string {
+export function pipingMarkup(
+  variant: string,
+  color: string,
+  length: number,
+  width: number = DEFAULT_PIPING_WIDTH,
+): string {
   const half = length / 2;
-  const units = Math.max(1, Math.round(length / PIPING_UNIT));
+  const count = pipingCount(length, width);
+  const spacing = length / count; // 모티프 중심 간격(= 모티프 지름 → 빈틈 없음)
   const fill = escapeAttr(color);
 
   if (variant === 'scallop') {
-    const w = length / units;
-    const r = w / 2;
+    const r = spacing / 2;
     let d = `M ${n(-half)} 0`;
-    for (let i = 0; i < units; i++) {
-      const x = -half + (i + 1) * w;
+    for (let i = 0; i < count; i++) {
+      const x = -half + (i + 1) * spacing;
       d += ` A ${n(r)} ${n(r)} 0 0 0 ${n(x)} 0`;
     }
-    return `<path d="${d}" fill="none" stroke="${fill}" stroke-width="${n(PIPING_HEIGHT * 0.22)}" stroke-linecap="round"/>`;
+    return `<path d="${d}" fill="none" stroke="${fill}" stroke-width="${n(Math.max(1, width * 0.4))}" stroke-linecap="round"/>`;
   }
 
-  if (variant === 'star-tip') {
-    const outer = PIPING_HEIGHT / 2;
-    const inner = outer * 0.45;
-    const star: string[] = [];
-    for (let i = 0; i < 10; i++) {
-      const rad = (Math.PI * i) / 5 - Math.PI / 2;
-      const rr = i % 2 === 0 ? outer : inner;
-      star.push(`${n(Math.cos(rad) * rr)},${n(Math.sin(rad) * rr)}`);
-    }
-    const count = units + 1;
-    const step = count > 1 ? length / (count - 1) : 0;
-    const polys = Array.from(
+  if (variant === 'teardrop') {
+    // 빈틈 없는 물방울: 중심 간격 = spacing, 모티프 크기 = spacing.
+    const drops = Array.from(
       { length: count },
-      (_, i) => `<polygon points="${star.join(' ')}" transform="translate(${n(-half + i * step)} 0)"/>`,
+      (_, i) =>
+        `<path d="${teardropPath(spacing)}" transform="translate(${n(-half + (i + 0.5) * spacing)} 0)"/>`,
     ).join('');
-    return `<g fill="${fill}">${polys}</g>`;
+    return `<g fill="${fill}">${drops}</g>`;
   }
 
-  // dots
-  const count = units + 1;
-  const step = count > 1 ? length / (count - 1) : 0;
-  const r = PIPING_HEIGHT * 0.3;
+  // dots(원형) — 빈틈 없는 원: 반지름 = spacing/2, 중심 간격 = spacing.
+  const r = spacing / 2;
   const dots = Array.from(
     { length: count },
-    (_, i) => `<circle cx="${n(-half + i * step)}" cy="0" r="${n(r)}"/>`,
+    (_, i) => `<circle cx="${n(-half + (i + 0.5) * spacing)}" cy="0" r="${n(r)}"/>`,
   ).join('');
   return `<g fill="${fill}">${dots}</g>`;
 }
@@ -147,7 +162,7 @@ export function elementInnerMarkup(element: Element): string {
     case 'lettering':
       return letteringMarkup(element.text, element.font, element.color);
     case 'piping':
-      return pipingMarkup(element.variant, element.color, element.length);
+      return pipingMarkup(element.variant, element.color, element.length, element.width);
     case 'illustration':
       return illustrationMarkup(element);
     case 'image':

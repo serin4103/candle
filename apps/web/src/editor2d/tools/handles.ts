@@ -14,6 +14,13 @@ export interface Size {
 export type Corner = 'nw' | 'ne' | 'se' | 'sw';
 export const CORNERS: Corner[] = ['nw', 'ne', 'se', 'sw'];
 
+/** 가로(파이핑 방향) 확장 핸들 식별자 — 로컬 x축 좌/우 변 중점. */
+export type Side = 'e' | 'w';
+export const SIDES: Side[] = ['e', 'w'];
+
+/** 변별 로컬 x 부호(중심 기준). */
+const SIDE_SIGN: Record<Side, number> = { e: 1, w: -1 };
+
 /** 코너별 로컬 부호(중심 기준). */
 const CORNER_SIGN: Record<Corner, { sx: number; sy: number }> = {
   nw: { sx: -1, sy: -1 },
@@ -35,6 +42,12 @@ export function cornerPoint(transform: Transform, size: Size, corner: Corner): P
   const { hx, hy } = halfExtents(size, transform.scale);
   const { sx, sy } = CORNER_SIGN[corner];
   return applyForwardRotation(transform, { x: sx * hx, y: sy * hy });
+}
+
+/** 좌/우 변 중점(파이핑 방향 수평 확장 핸들)의 전개도 좌표. */
+export function edgeMidPoint(transform: Transform, size: Size, side: Side): Point {
+  const { hx } = halfExtents(size, transform.scale);
+  return applyForwardRotation(transform, { x: SIDE_SIGN[side] * hx, y: 0 });
 }
 
 /**

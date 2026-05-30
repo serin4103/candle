@@ -22,8 +22,17 @@ export type ElementInput = DistributiveOmit<Element, 'id' | 'zIndex'> & {
 /** 레터링 변경 가능한 필드. */
 export type LetteringPatch = Partial<Pick<Extract<Element, { type: 'lettering' }>, 'text' | 'font' | 'color'>>;
 
-/** 파이핑 변경 가능한 필드. */
-export type PipingPatch = Partial<Pick<Extract<Element, { type: 'piping' }>, 'color'>>;
+/** 파이핑 변경 가능한 필드(색상·굵기·런 길이). length는 수평 확장 핸들이 갱신. */
+export type PipingPatch = Partial<
+  Pick<Extract<Element, { type: 'piping' }>, 'color' | 'width' | 'length'>
+>;
+
+/** 파이핑 그리기 모드 설정(모양·색상·굵기). */
+export interface PendingPiping {
+  variant: string;
+  color: string;
+  width: number;
+}
 
 /** 일러스트 변경 가능한 필드(색상 교체). */
 export type IllustrationPatch = Partial<Pick<Extract<Element, { type: 'illustration' }>, 'colors'>>;
@@ -37,11 +46,20 @@ export interface Brush {
   width: number;
 }
 
+/** 파이핑 추가 패널의 색상·굵기 설정(모양 선택과 별개로 유지). */
+export interface PipingBrush {
+  color: string;
+  width: number;
+}
+
 /** 기본 뷰포트(원점·1배). */
 const DEFAULT_VIEWPORT: Viewport = { panX: 0, panY: 0, zoom: 1 };
 
 /** 기본 브러시 — 크림 위에서 잘 보이는 진한 갈색, 적당한 굵기(cm). */
 const DEFAULT_BRUSH: Brush = { color: '#5a3b3b', width: 2 };
+
+/** 기본 파이핑 설정 — 파스텔 핑크, 기본 굵기(cm). (catalog DEFAULT_PIPING_WIDTH와 일치) */
+const DEFAULT_PIPING_BRUSH: PipingBrush = { color: '#ef9aae', width: 7 };
 
 export interface DesignState {
   /** 현재 디자인 문서. */
@@ -54,7 +72,7 @@ export interface DesignState {
    * 파이핑 그리기 모드. 활성이면 캔버스 드래그가 파이핑 런을 그린다(선택/이동 대신).
    * null이면 일반 편집 모드. (표현/도구 상태)
    */
-  pendingPiping: { variant: string; color: string } | null;
+  pendingPiping: PendingPiping | null;
   /**
    * 손그림 도구 모드 (PRD-S1). 'pen'이면 드래그가 획을 그리고, 'eraser'면 드래그가
    * 닿은 획을 지운다. null이면 일반 편집. pendingPiping과 상호배타.
@@ -62,6 +80,8 @@ export interface DesignState {
   drawingTool: DrawingTool;
   /** 펜 브러시(색상·굵기). */
   brush: Brush;
+  /** 파이핑 추가 패널의 색상·굵기(모양과 별개로 유지). */
+  pipingBrush: PipingBrush;
 
   // ── 시트(케이크) ──
   setShape: (shape: Shape) => void;
@@ -90,11 +110,13 @@ export interface DesignState {
   select: (id: string | null) => void;
   setViewport: (viewport: Viewport) => void;
   /** 파이핑 그리기 모드 설정/해제(설정 시 손그림 모드 해제). */
-  setPendingPiping: (pending: { variant: string; color: string } | null) => void;
+  setPendingPiping: (pending: PendingPiping | null) => void;
   /** 손그림 도구 모드 설정/해제(설정 시 파이핑 모드·선택 해제). */
   setDrawingTool: (tool: DrawingTool) => void;
   /** 브러시 일부 변경(색상·굵기). */
   setBrush: (patch: Partial<Brush>) => void;
+  /** 파이핑 설정 일부 변경(색상·굵기). 그리기 모드가 켜져 있으면 그 모드에도 반영. */
+  setPipingBrush: (patch: Partial<PipingBrush>) => void;
 
   // ── 문서 로드/스냅샷 ──
   /** 외부 디자인 문서를 검증 후 적재. */
@@ -124,6 +146,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   pendingPiping: null,
   drawingTool: null,
   brush: { ...DEFAULT_BRUSH },
+  pipingBrush: { ...DEFAULT_PIPING_BRUSH },
 
   setShape: (shape) =>
     set((s) => ({ design: { ...s.design, shape } })),
@@ -254,6 +277,13 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     })),
 
   setBrush: (patch) => set((s) => ({ brush: { ...s.brush, ...patch } })),
+
+  // 파이핑 설정 변경 — 그리기 모드가 활성이면 그 모드(pendingPiping)에도 즉시 반영.
+  setPipingBrush: (patch) =>
+    set((s) => ({
+      pipingBrush: { ...s.pipingBrush, ...patch },
+      pendingPiping: s.pendingPiping ? { ...s.pendingPiping, ...patch } : s.pendingPiping,
+    })),
 
   loadDesign: (design) =>
     set({ design: validateDesign(design), selectedId: null, pendingPiping: null, drawingTool: null }),

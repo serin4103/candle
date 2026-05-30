@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { palette, fontStack, radius, shadow, Button } from './ui';
 import { CakeControls } from './cake';
 import { NetEditor } from './editor2d/canvas';
-import { LibraryPanel, PropertiesPanel, DrawingPanel } from './editor2d/panels';
+import { LibraryPanel, PropertiesPanel, DrawingPanel, PipingPanel } from './editor2d/panels';
 import { useResolveImageAssets } from './editor2d/elements';
 import { CakeViewer3D } from './viewer3d';
 import { SharePanel, useShareSession, myPageUrl, navigate } from './share';
@@ -134,6 +134,7 @@ export function App() {
             <>
               <CakeControls />
               <LibraryPanel />
+              <PipingPanel />
               <DrawingPanel />
             </>
           )}

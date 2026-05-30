@@ -187,12 +187,12 @@ describe('손그림 (PRD-S1)', () => {
 
   it('손그림 모드와 파이핑 모드는 상호배타다', () => {
     const s = useDesignStore.getState();
-    s.setPendingPiping({ variant: 'dots', color: '#fff' });
+    s.setPendingPiping({ variant: 'dots', color: '#fff', width: 7 });
     s.setDrawingTool('pen');
     expect(useDesignStore.getState().pendingPiping).toBeNull(); // 펜 켜면 파이핑 해제
     expect(useDesignStore.getState().drawingTool).toBe('pen');
 
-    s.setPendingPiping({ variant: 'dots', color: '#fff' });
+    s.setPendingPiping({ variant: 'dots', color: '#fff', width: 7 });
     expect(useDesignStore.getState().drawingTool).toBeNull(); // 파이핑 켜면 펜 해제
   });
 
@@ -207,5 +207,42 @@ describe('손그림 (PRD-S1)', () => {
     expect(useDesignStore.getState().brush.width).toBe(5);
     useDesignStore.getState().setBrush({ color: '#abcdef' });
     expect(useDesignStore.getState().brush).toMatchObject({ width: 5, color: '#abcdef' });
+  });
+});
+
+describe('파이핑 보강 (PRD-M3)', () => {
+  beforeEach(() => {
+    useDesignStore.setState({ pendingPiping: null, drawingTool: null });
+  });
+
+  it('addElement로 추가한 파이핑의 색상·굵기·길이를 updatePiping으로 바꾼다', () => {
+    const id = useDesignStore.getState().addElement({
+      type: 'piping',
+      variant: 'teardrop',
+      color: '#ef9aae',
+      width: 7,
+      length: 20,
+      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    });
+    useDesignStore.getState().updatePiping(id, { color: '#000000', width: 10, length: 35 });
+    const el = useDesignStore.getState().design.elements.find((e) => e.id === id);
+    expect(el?.type).toBe('piping');
+    if (el?.type === 'piping') {
+      expect(el.color).toBe('#000000');
+      expect(el.width).toBe(10);
+      expect(el.length).toBe(35);
+      expect(el.variant).toBe('teardrop'); // 모양은 보존
+    }
+  });
+
+  it('setPipingBrush는 일부 필드만 갱신하고, 그리기 모드가 켜져 있으면 거기에도 반영한다', () => {
+    const s = useDesignStore.getState();
+    s.setPipingBrush({ width: 12 });
+    expect(useDesignStore.getState().pipingBrush.width).toBe(12);
+    // 그리기 모드 활성 중 변경 → pendingPiping에도 반영.
+    s.setPendingPiping({ variant: 'dots', color: '#ef9aae', width: 12 });
+    useDesignStore.getState().setPipingBrush({ color: '#5b7fa6' });
+    expect(useDesignStore.getState().pendingPiping).toMatchObject({ color: '#5b7fa6', width: 12 });
+    expect(useDesignStore.getState().pipingBrush.color).toBe('#5b7fa6');
   });
 });

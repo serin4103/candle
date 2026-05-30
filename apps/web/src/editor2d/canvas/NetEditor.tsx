@@ -16,13 +16,17 @@ import {
 } from '../elements';
 import {
   handlePositions,
+  edgeMidPoint,
   pickTopElement,
   CORNERS,
+  SIDES,
   type Corner,
+  type Side,
   type Pickable,
   beginMove,
   beginScale,
   beginRotate,
+  beginLength,
   applyGesture,
   type Gesture,
   appendStrokePoint,
@@ -55,6 +59,7 @@ export function NetEditor() {
   const moveElement = useDesignStore((s) => s.moveElement);
   const scaleElement = useDesignStore((s) => s.scaleElement);
   const rotateElement = useDesignStore((s) => s.rotateElement);
+  const updatePiping = useDesignStore((s) => s.updatePiping);
   const deleteElement = useDesignStore((s) => s.deleteElement);
   const pendingPiping = useDesignStore((s) => s.pendingPiping);
   const setPendingPiping = useDesignStore((s) => s.setPendingPiping);
@@ -134,8 +139,8 @@ export function NetEditor() {
     return { x: p.x, y: p.y };
   };
 
-  // 선택 요소의 핸들에 닿았는지 판별.
-  const pickHandle = (point: Point): 'rotate' | Corner | null => {
+  // 선택 요소의 핸들에 닿았는지 판별. 파이핑은 가로 확장 핸들(e/w)도 검사.
+  const pickHandle = (point: Point): 'rotate' | Corner | Side | null => {
     if (!selected) return null;
     const size = elementLocalSize(selected);
     const { corners, rotate } = handlePositions(selected.transform, size, rotateOffset);
@@ -143,6 +148,12 @@ export function NetEditor() {
     for (const c of CORNERS) {
       const hp = corners[c];
       if (Math.hypot(point.x - hp.x, point.y - hp.y) <= handleHit) return c;
+    }
+    if (selected.type === 'piping') {
+      for (const side of SIDES) {
+        const hp = edgeMidPoint(selected.transform, size, side);
+        if (Math.hypot(point.x - hp.x, point.y - hp.y) <= handleHit) return side;
+      }
     }
     return null;
   };
@@ -194,7 +205,9 @@ export function NetEditor() {
         const gesture =
           handle === 'rotate'
             ? beginRotate(selected.transform)
-            : beginScale(selected.transform, size, handle);
+            : handle === 'e' || handle === 'w'
+              ? beginLength(selected.transform, size, handle, MIN_PIPING_LENGTH)
+              : beginScale(selected.transform, size, handle);
         activeRef.current = { gesture, elementId: selected.id };
         e.currentTarget.setPointerCapture(e.pointerId);
         return;
@@ -256,6 +269,7 @@ export function NetEditor() {
     const patch = applyGesture(active.gesture, point);
     if (patch.rotation !== undefined) rotateElement(active.elementId, patch.rotation);
     if (patch.scale !== undefined) scaleElement(active.elementId, patch.scale);
+    if (patch.length !== undefined) updatePiping(active.elementId, { length: patch.length });
     if (patch.x !== undefined && patch.y !== undefined) {
       moveElement(active.elementId, { x: patch.x, y: patch.y });
     }
@@ -291,6 +305,7 @@ export function NetEditor() {
         type: 'piping',
         variant: pendingPiping.variant,
         color: pendingPiping.color,
+        width: pendingPiping.width,
         length: Math.max(MIN_PIPING_LENGTH, run.length),
         transform: { x: run.center.x, y: run.center.y, scale: 1, rotation: run.rotation },
       });
@@ -418,6 +433,7 @@ export function NetEditor() {
             variant={pendingPiping.variant}
             color={pendingPiping.color}
             length={Math.max(MIN_PIPING_LENGTH, previewRun.length)}
+            width={pendingPiping.width}
           />
         </g>
       )}
@@ -468,6 +484,11 @@ function SelectionOverlay({
     x: (corners.nw.x + corners.ne.x) / 2,
     y: (corners.nw.y + corners.ne.y) / 2,
   };
+  // 파이핑은 가로(파이핑 방향) 확장 핸들을 좌/우 변 중점에 둔다(드래그 시 개수 증감).
+  const sideHandles =
+    element.type === 'piping'
+      ? SIDES.map((s) => ({ key: s, p: edgeMidPoint(element.transform, size, s) }))
+      : [];
 
   return (
     <g pointerEvents="none">
@@ -504,6 +525,20 @@ function SelectionOverlay({
           width={handleR * 2}
           height={handleR * 2}
           fill={palette.surface}
+          stroke={palette.primaryDeep}
+          strokeWidth={strokeW}
+        />
+      ))}
+      {/* 파이핑 가로 확장 핸들(마름모로 코너와 구분) */}
+      {sideHandles.map(({ key, p }) => (
+        <rect
+          key={key}
+          x={p.x - handleR}
+          y={p.y - handleR}
+          width={handleR * 2}
+          height={handleR * 2}
+          transform={`rotate(45 ${p.x.toFixed(2)} ${p.y.toFixed(2)})`}
+          fill={palette.primary}
           stroke={palette.primaryDeep}
           strokeWidth={strokeW}
         />

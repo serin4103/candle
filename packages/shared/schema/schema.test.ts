@@ -74,4 +74,22 @@ describe('validateElement', () => {
       }),
     ).toThrow();
   });
+
+  it('파이핑 width는 선택(있으면 양수)이다 — 기존 데이터 호환', () => {
+    const base = {
+      id: 'p1',
+      type: 'piping' as const,
+      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+      zIndex: 0,
+      variant: 'dots',
+      color: '#fff',
+      length: 20,
+    };
+    // width 없이도 통과(기존 저장 데이터).
+    expect(validateElement(base)).toEqual(base);
+    // width 있으면 보존.
+    expect(validateElement({ ...base, width: 7 })).toMatchObject({ width: 7 });
+    // 음수/0 width는 거부.
+    expect(() => validateElement({ ...base, width: 0 })).toThrow();
+  });
 });

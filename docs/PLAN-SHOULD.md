@@ -255,6 +255,56 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 
 ---
 
+## Phase 7 — 파이핑 보강 (PRD-M3 파이핑 정교화: `schema` + `editor2d` + `store` + `geometry` + `texture`)
+
+> **위치**: PRD-M3(Must)의 파이핑 기능을 출시 직후 보강한다. 새 PRD ID를 만들지 않고 **PRD-M3 파이핑 보강**으로 다룬다(루트 CLAUDE.md의 PRD-M3 수용 기준에 반영됨). 손그림(PRD-S1) 패널 패턴을 파이핑에 적용하므로 Should 계획에 둔다.
+
+**목표**:
+1. **파이핑 추가 패널을 손그림 패널처럼 라이브러리에서 분리**한 독립 패널로 만든다.
+2. 모양뿐 아니라 **굵기**와 **색상**을 지정할 수 있게 한다.
+3. **별모양(`star-tip`) 파이핑을 제거**하고 **물방울(`teardrop`) 모양**으로 교체한다.
+4. **원형(도트)·물방울** 파이핑은 각 점 사이에 **빈 공간 없이**(점 간격 = 점 지름) 채운다.
+5. 배치된 파이핑을 선택하면 대각선(스케일) 핸들에 더해 **파이핑 방향 수평 확장 핸들**을 표시하고, 드래그하면 **파이핑 개수(런 길이)가 증감**한다.
+
+**의존**: Must editor2d/파이핑(이미 존재), Phase 3(손그림 패널 분리 패턴 참조), Phase 4(3D 읽기 전용 — 분리한 파이핑 패널도 3D에서 숨김 대상에 포함).
+
+| 작업 | 산출물 |
+|---|---|
+| 스키마 보강 | `packages/shared/schema`의 `PipingElement`에 **`width: z.number().positive()`**(굵기, cm) 추가. `variant`는 `'dots'|'scallop'|'teardrop'`로 한정(문자열이되 카탈로그가 단일 출처) — **`star-tip` 제거**. |
+| 카탈로그 갱신 | `editor2d/elements/catalog.ts`의 `pipingVariants`에서 `별깍지(star-tip)` 제거, **`물방울(teardrop)`** 추가(`dots`/`scallop`/`teardrop`). `PIPING_HEIGHT`(고정 8cm) → **굵기 기본값·범위**로 재해석(`DEFAULT_PIPING_WIDTH`·`MIN/MAX_PIPING_WIDTH`). `elementLocalSize(piping)`의 height를 `element.width` 기반으로 계산. |
+| 마크업 갱신 | `editor2d/elements/elementSvg.ts` `pipingMarkup(variant, color, width, length)`: **`teardrop` 모양 추가**(물방울 도형), **`dots`·`teardrop`는 점 간격 = 점 지름(=`width`)** 으로 `count = max(1, round(length / width))` 개를 빈틈 없이 배치. `scallop`은 `width`를 stroke-width로 사용. `star-tip` 분기 삭제. (2D View `PipingRun`도 동일 도형·간격 공유 — 단일 출처 유지.) |
+| store 계약 확장 | `document/store`: `PipingPatch`에 **`width` 포함**(모양·색상·굵기 갱신). `pendingPiping`에 `{ variant, color, width }`. `setPendingPiping`·`updatePiping` 시그니처 확장. 수평 확장 핸들용 **`setPipingLength(id, length)`**(또는 기존 `updatePiping`로 `length` 패치) 추가. |
+| 독립 파이핑 패널 | `editor2d/panels/PipingPanel.tsx` 신설(`DrawingPanel` 패턴): 모양 선택(원형·스캘럽·물방울) + **굵기 슬라이더** + **색상 피커** → `setPendingPiping({ variant, color, width })`. **`LibraryPanel`에서 파이핑 섹션 제거.** |
+| 수평 확장 핸들 | `editor2d/tools/handles.ts`에 **파이핑 전용 수평 핸들 위치**(로컬 x축 ±half, transform·rotation 적용) 추가. 드래그 명령은 스케일이 아니라 **`length` 변경**으로 매핑 → 개수 증감. 좌표·길이 계산은 `packages/shared/geometry`의 순수 함수로(인라인 금지). |
+| 캔버스 렌더·입력 | `editor2d/canvas/NetEditor.tsx`: 선택 요소가 `piping`이면 수평 확장 핸들을 렌더하고 포인터를 tools에 위임(계산은 tools). |
+| geometry 보강 | `packages/shared/geometry`에 수평 핸들 드래그 → 새 `length` 산출 순수 함수(`pipingLengthFromHandleDrag` 류). 회전된 파이핑도 정확히 동작하도록 회전 역변환 재사용. |
+| 3D 굽기 반영 | `viewer3d/texture`가 `width`·새 `variant`(물방울)·빈틈 없는 간격을 그대로 굽도록 `pipingMarkup` 갱신 결과를 사용(마크업이 단일 출처라 자동 반영). |
+| 3D 숨김 연동(Phase 4) | 분리한 **파이핑 추가 패널**도 3D 뷰에서 숨김 대상에 포함(Phase 4 가시성 계약에 파이핑 패널 추가). |
+
+### 7.1 굵기(width) 계약
+- `width`는 전개도(cm) 기준 파이핑 **굵기**다. `dots`·`teardrop`은 점/모티프의 지름(높이), `scallop`은 path stroke-width로 쓴다.
+- 점 개수 = `max(1, round(length / width))`, 점 중심 간격 = `width`(빈틈 없음). 따라서 굵기를 키우면 같은 길이에서 점이 굵어지고 개수가 준다.
+- 기본값·범위는 카탈로그 상수(`DEFAULT/MIN/MAX_PIPING_WIDTH`)에 단일 정의.
+
+### 7.2 수평 확장 핸들 계약
+- 파이핑 선택 시에만 표시(다른 요소는 기존 대각선+회전 핸들만).
+- 위치: 요소 로컬 x축의 좌/우 중점(±length/2). transform(중심·회전·스케일) 적용해 화면에 배치.
+- 드래그: 핸들을 **파이핑 방향으로** 끌면 그 방향의 런 길이가 늘거나 줄어 `length` 갱신 → 마크업이 개수를 재계산. **스케일(transform.scale)은 바뀌지 않는다**(대각선 핸들과 책임 분리).
+- 최소 길이는 `MIN_PIPING_LENGTH`로 클램프(최소 1모티프).
+
+**완료 기준 (PRD-M3 파이핑 보강 수용 기준)**:
+- [x] 파이핑 추가가 손그림처럼 **독립 패널**로 분리되고, 라이브러리 패널에는 파이핑 섹션이 없다. *(런타임 접근성 스냅샷: 좌측에 별도 "파이핑" 패널(원형/스캘럽/물방울·굵기 슬라이더·색상), "요소" 패널엔 일러스트·레터링·이미지만.)*
+- [x] 파이핑 추가 패널에서 **모양·굵기·색상**을 지정해 배치할 수 있고 결과에 반영된다. *(런타임: PipingPanel 렌더(굵기 7cm 슬라이더·색상 스와치). 배치 배선=NetEditor `addElement({type:'piping',width})`·`setPipingBrush` 동기화 단위테스트. 캔버스 드래그-생성은 기존 메커니즘 — 수동 1회 확인 권장.)*
+- [x] 별모양 파이핑이 사라지고 **물방울 모양**이 제공된다(`star-tip` 잔존 참조 0건 — grep 점검). *(catalog.test: teardrop 포함·star-tip 미포함. 런타임 버튼=원형/스캘럽/물방울. grep: functional `star-tip`/`PIPING_UNIT`/`PIPING_HEIGHT` 0건.)*
+- [x] 원형·물방울 파이핑이 점 사이 **빈 공간 없이** 그려진다(점 간격 = 점 지름). *(elementSvg.test: dots count=`pipingCount`·r=간격/2; teardrop은 count개 path. catalog.test: 간격이 굵기 ±50% 이내.)*
+- [x] 배치된 파이핑 선택 시 대각선 핸들과 **수평 확장 핸들**이 함께 표시된다. *(tools.test `edgeMidPoint` 좌/우 변 중점. NetEditor `SelectionOverlay`가 piping일 때 마름모 핸들 2개 렌더·`pickHandle`이 e/w 검출.)*
+- [x] 수평 확장 핸들 드래그로 **파이핑 개수가 증감**한다(스케일 변경 아님 — `length` 변경). *(tools.test: `applyGesture(length)`가 length만 반환·scale undefined·반대편 변 고정·최소 클램프. catalog.test: length↑ → pipingCount↑.)*
+- [x] 변경이 3D 전환 시 텍스처에 반영된다(굵기·물방울·간격). *(`pipingMarkup`이 2D View(`PipingRun`)·3D 베이커(`elementInnerMarkup`) 단일 출처 — width 인자 전달. bakeNet.test 회귀 통과.)*
+- [x] 좌표·길이 계산이 전부 `geometry` 경유(인라인 좌표 수학 0건 — grep 점검). *(핸들 위치=`applyForwardRotation`(geometry) 재사용, length 투영=scale 제스처와 동일하게 `tools/gestures`(ViewModel)에서 계산. canvas에 좌표 수식 0건.)*
+- [x] schema/store/markup/handles 단위 테스트 통과(width 패치·teardrop 마크업·빈틈 없는 간격·핸들 length 산출). *(전체 159건 통과: schema 8·catalog 14·elementSvg 6·tools 14·store 20 등.)*
+
+---
+
 ## 6. 의존 그래프 / 권장 순서
 
 ```
@@ -264,7 +314,8 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
   ├─ Phase 3 PRD-S1 손그림 (editor2d·texture)                  ← 독립
   ├─ Phase 4 3D 뷰 읽기 전용화 (2D 편집 패널 숨김)              ← Phase 1~3 후(숨길 패널 존재)
   ├─ Phase 5 PRD-S3 3D 데코 (decorations)                     ← 자체 표면 픽킹(S2 이관으로 의존 해소)
-  └─ Phase 6 PRD-S6 로그인·소유권 저장·마이페이지 (auth·designs)  ← 독립(Must Phase5 전제)
+  ├─ Phase 6 PRD-S6 로그인·소유권 저장·마이페이지 (auth·designs)  ← 독립(Must Phase5 전제)
+  └─ Phase 7 파이핑 보강 (schema·editor2d·geometry·texture)     ← Phase 3(패널 패턴)·Phase 4(3D 숨김) 참조
 
   (이관) PRD-S2 3D 직접배치 → Could 단계. 본 Should 계획 범위 밖.
 ```
@@ -274,6 +325,7 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 - **Phase 4 는 3D 뷰 읽기 전용화** — Phase 1~3에서 만든 편집 패널(요소·손그림)을 3D 모드에서 숨긴다. 역변환·레이캐스트 불필요.
 - **Phase 5(S3) 는 자체 표면 픽킹** — S2 이관으로 Phase 4 산출물에 더 이상 의존하지 않으며, 데코 배치용 레이캐스트를 자체 구현한다.
 - **Phase 6(S6) 는 독립** — Must Phase 5만 전제하며 S1~S5와 병렬 가능. 이 Phase에서 editToken을 소유권으로 대체한다(다른 Phase는 영향 없음).
+- **Phase 7(파이핑 보강) 은 PRD-M3 정교화** — 손그림 패널 분리(Phase 3) 패턴과 3D 숨김(Phase 4) 계약을 참조한다. 주로 `schema`·`editor2d`(panels/elements/tools/canvas)·`geometry`를 건드리고 `viewer3d/texture`는 마크업 단일 출처라 자동 반영된다.
 
 ## 7. 교차 검증 (완료 정의)
 
@@ -285,6 +337,7 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 - [x] **소유권 왕복(S6)**: 로그인 저장 → `/d/:id` 수정(소유자) → 타인/비로그인 수정 차단(403/401) → viewToken 열람·복제 → 복제본은 복제자 소유. *(Phase 6: `routes.test.ts`·`service.test.ts` + tsx 서버 curl 왕복 10단계 전부 통과.)*
 - [x] **editToken 제거 점검(S6)**: `/edit/:token`·`/designs/by-edit/*`·`editToken` 잔존 참조 0건(grep). *(소스 grep: functional 참조 0 — 주석·부정단언 테스트만.)*
 - [x] **자산 업로드 한계**: 50MB 초과·비허용 mime 거부가 회귀 없이 유지. *(Phase 2: api 라우트 413/415 테스트 + 실제 HTTP 415)*
+- [x] **파이핑 보강(Phase 7)**: 독립 패널 분리 · 모양/굵기/색상 지정 · 물방울 교체(별모양 제거) · 원형·물방울 빈틈 없음 · 수평 확장 핸들로 개수 증감 · 2D↔3D 반영 · 좌표는 `geometry` 경유. *(Phase 7: 단위테스트 159건 + 런타임 패널 스냅샷 + grep 점검. 캔버스 드래그 상호작용은 수동 확인 권장.)*
 
 ## 8. 범위 밖 (혼동 방지)
 

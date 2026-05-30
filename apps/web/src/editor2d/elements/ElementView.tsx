@@ -18,14 +18,16 @@ export interface PipingRunProps {
   color: string;
   /** 런 길이(cm). 이 길이에 맞춰 모티프가 반복된다. */
   length: number;
+  /** 굵기(cm). 모티프 지름·스캘럽 두께. 생략 시 기본 굵기로 보강. */
+  width?: number;
 }
 
 /**
  * 파이핑 런 — 중심(0,0) 기준으로 length만큼 가로로 펼쳐진 띠에 모티프를 반복한다.
  * 마크업은 elementSvg.pipingMarkup가 단일 출처. 라이브러리 미리보기와도 공유한다.
  */
-export function PipingRun({ variant, color, length }: PipingRunProps) {
-  return <g dangerouslySetInnerHTML={{ __html: pipingMarkup(variant, color, length) }} />;
+export function PipingRun({ variant, color, length, width }: PipingRunProps) {
+  return <g dangerouslySetInnerHTML={{ __html: pipingMarkup(variant, color, length, width) }} />;
 }
 
 /** 요소를 그 transform대로 배치한 SVG 그룹으로 렌더한다. */

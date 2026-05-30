@@ -106,11 +106,11 @@ export const illustrations: IllustrationAsset[] = ILLUSTRATION_SOURCES.map(
   }),
 );
 
-/** 파이핑 변형(PRD-M3 카테고리 3). */
+/** 파이핑 변형(PRD-M3 카테고리 3). 별모양 제거, 물방울 추가. */
 export const pipingVariants: PipingVariant[] = [
-  { id: 'dots', label: '도트' },
+  { id: 'dots', label: '원형' },
   { id: 'scallop', label: '스캘럽' },
-  { id: 'star-tip', label: '별깍지' },
+  { id: 'teardrop', label: '물방울' },
 ];
 
 /** 레터링 폰트(PRD-M3 카테고리 2). */
@@ -128,12 +128,22 @@ export function illustrationAsset(assetId: string): IllustrationAsset | undefine
 // ── 로컬 크기(스케일 1, 전개도 cm) ─────────────────────────────────
 /** 일러스트 긴 변(cm). 비율에 맞춰 다른 변을 줄인다. */
 export const ILLUSTRATION_SIZE = 14;
-/** 파이핑 띠 높이(cm). */
-export const PIPING_HEIGHT = 8;
-/** 파이핑 모티프(반복 단위) 길이(cm). 런 길이를 이 값으로 나눠 반복 횟수를 정한다. */
-export const PIPING_UNIT = 7;
+/** 파이핑 기본 굵기(cm) — width 미지정 시 보강값. 모티프(점/물방울) 지름·스캘럽 두께의 기준. */
+export const DEFAULT_PIPING_WIDTH = 7;
+/** 파이핑 굵기 범위(cm). */
+export const MIN_PIPING_WIDTH = 3;
+export const MAX_PIPING_WIDTH = 14;
 /** 파이핑 런 최소 길이(cm) — 클릭만 해도 최소 한 모티프는 보이도록. */
-export const MIN_PIPING_LENGTH = PIPING_UNIT;
+export const MIN_PIPING_LENGTH = 4;
+
+/**
+ * 빈틈 없는 파이핑 모티프 개수 — 런 길이를 굵기(점 지름)로 나눠 반올림한다.
+ * 점 간격 = length / count 이므로 점끼리 접해 빈 공간이 없다(원형·물방울).
+ * 길이를 늘리면 개수가 늘고, 줄이면 준다(수평 확장 핸들 요구).
+ */
+export function pipingCount(length: number, width: number): number {
+  return Math.max(1, Math.round(length / Math.max(1e-6, width)));
+}
 /** 레터링 폰트 크기(cm)와 글자당 가로 비율. */
 export const LETTER_FONT_CM = 9;
 const LETTER_ASPECT = 0.62;
@@ -149,8 +159,11 @@ export function elementLocalSize(element: Element): { width: number; height: num
       };
     }
     case 'piping':
-      // 드래그한 런 길이가 곧 가로 폭.
-      return { width: Math.max(MIN_PIPING_LENGTH, element.length), height: PIPING_HEIGHT };
+      // 드래그한 런 길이가 곧 가로 폭, 굵기가 띠 높이(빈틈 없는 모티프는 지름=굵기).
+      return {
+        width: Math.max(MIN_PIPING_LENGTH, element.length),
+        height: element.width ?? DEFAULT_PIPING_WIDTH,
+      };
     case 'illustration': {
       // 긴 변을 ILLUSTRATION_SIZE로 두고 비율대로 다른 변을 맞춘다.
       const aspect = illustrationAsset(element.assetId)?.aspect ?? 1;

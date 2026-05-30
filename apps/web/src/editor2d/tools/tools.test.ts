@@ -5,10 +5,11 @@ import {
   pickTopElement,
   handlePositions,
   cornerPoint,
+  edgeMidPoint,
   type Size,
   type Pickable,
 } from './handles';
-import { beginMove, beginScale, beginRotate, applyGesture } from './gestures';
+import { beginMove, beginScale, beginRotate, beginLength, applyGesture } from './gestures';
 
 const size: Size = { width: 10, height: 6 };
 const at = (x: number, y: number, scale = 1, rotation = 0): Transform => ({
@@ -117,5 +118,45 @@ describe('applyGesture: scale', () => {
     const newNw = cornerPoint(after, size, 'nw');
     expect(newNw.x).toBeCloseTo(pivot.x, 9);
     expect(newNw.y).toBeCloseTo(pivot.y, 9);
+  });
+});
+
+describe('edgeMidPoint (파이핑 가로 핸들 위치)', () => {
+  it('좌/우 변 중점은 ±폭/2, y=0', () => {
+    const t = at(0, 0, 1);
+    expect(edgeMidPoint(t, size, 'e')).toEqual({ x: 5, y: 0 });
+    expect(edgeMidPoint(t, size, 'w')).toEqual({ x: -5, y: 0 });
+  });
+});
+
+describe('applyGesture: length (파이핑 수평 확장)', () => {
+  it('잡은 변을 그대로 두면 길이 변화 없음, 스케일 미포함', () => {
+    const t = at(0, 0, 1);
+    const grabbed = edgeMidPoint(t, size, 'e');
+    const g = beginLength(t, size, 'e', 4);
+    const patch = applyGesture(g, grabbed);
+    expect(patch.length).toBeCloseTo(size.width, 9); // 10
+    expect(patch.scale).toBeUndefined(); // 길이만 변경, 스케일 불변
+  });
+
+  it('변을 pivot(반대편 변)에서 2배 멀리 끌면 길이 2배, 반대편 변 고정', () => {
+    const t = at(0, 0, 1);
+    const pivot = edgeMidPoint(t, size, 'w'); // e의 반대
+    const g = beginLength(t, size, 'e', 4);
+    const target = { x: pivot.x + size.width * 2, y: 0 };
+    const patch = applyGesture(g, target);
+    expect(patch.length).toBeCloseTo(size.width * 2, 9); // 20
+    // 새 중심은 pivot + 축·(길이/2) = (-5) + 10 = 5
+    expect(patch.x).toBeCloseTo(5, 9);
+    expect(patch.y).toBeCloseTo(0, 9);
+  });
+
+  it('최소 길이로 클램프된다', () => {
+    const t = at(0, 0, 1);
+    const pivot = edgeMidPoint(t, size, 'w');
+    const g = beginLength(t, size, 'e', 4);
+    // pivot보다 더 안쪽으로(음수 투영) 끌어도 최소 길이 유지.
+    const patch = applyGesture(g, { x: pivot.x - 3, y: 0 });
+    expect(patch.length).toBeCloseTo(4, 9);
   });
 });
