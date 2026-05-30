@@ -4,13 +4,13 @@
 // shared/geometry·catalog가 단일 출처 — 여기선 그 결과를 SVG 문자열로 직렬화만 한다.
 // 규칙: 순수 함수. DOM·렌더 기술 의존 없음.
 import type { Element } from '@candle/shared';
+import { resamplePath, type Point } from '@candle/shared/geometry';
 import {
   illustrationAsset,
   illustrationDataUri,
   elementLocalSize,
   ILLUSTRATION_SIZE,
   DEFAULT_PIPING_WIDTH,
-  pipingCount,
   LETTER_FONT_CM,
 } from './catalog';
 import { getImageAsset } from './imageAssets';
@@ -49,48 +49,47 @@ function teardropPath(s: number): string {
 }
 
 /**
- * 파이핑 런 마크업 — 중심(0,0) 기준 length만큼 가로로 펼친 모티프 반복.
- * ElementView의 PipingRun(JSX)과 동일한 도형을 문자열로 만든다.
- * width는 굵기(모티프 지름·스캘럽 두께). 원형·물방울은 점 간격 = 지름으로
- * 빈틈 없이(서로 접하게) 배치한다.
+ * 파이핑 마크업 — 곡선 경로(points)를 따라 모티프를 일정 간격으로 찍는다.
+ * 모티프 크기·간격 = width로 **고정**이라 경로가 길어지면 개수만 늘고 크기는 변하지 않는다.
+ * 원형·물방울은 간격 = 지름이라 빈틈 없이(서로 접하게) 놓인다. ElementView의 PipingRun과
+ * 동일한 도형을 문자열로 만든다. points는 로컬 좌표(transform 적용 전).
  */
 export function pipingMarkup(
   variant: string,
   color: string,
-  length: number,
+  points: Point[],
   width: number = DEFAULT_PIPING_WIDTH,
 ): string {
-  const half = length / 2;
-  const count = pipingCount(length, width);
-  const spacing = length / count; // 모티프 중심 간격(= 모티프 지름 → 빈틈 없음)
+  if (!points || points.length === 0) return '';
   const fill = escapeAttr(color);
 
   if (variant === 'scallop') {
-    const r = spacing / 2;
-    let d = `M ${n(-half)} 0`;
-    for (let i = 0; i < count; i++) {
-      const x = -half + (i + 1) * spacing;
-      d += ` A ${n(r)} ${n(r)} 0 0 0 ${n(x)} 0`;
+    // 경로를 따라가는 연속 라인(둥근 캡). 점 1개면 원.
+    if (points.length === 1) {
+      const p = points[0]!;
+      return `<circle cx="${n(p.x)}" cy="${n(p.y)}" r="${n(width / 2)}" fill="${fill}"/>`;
     }
-    return `<path d="${d}" fill="none" stroke="${fill}" stroke-width="${n(Math.max(1, width * 0.4))}" stroke-linecap="round"/>`;
+    const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${n(p.x)} ${n(p.y)}`).join(' ');
+    return `<path d="${d}" fill="none" stroke="${fill}" stroke-width="${n(width)}" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
 
+  const samples = resamplePath(points, width);
+
   if (variant === 'teardrop') {
-    // 빈틈 없는 물방울: 중심 간격 = spacing, 모티프 크기 = spacing.
-    const drops = Array.from(
-      { length: count },
-      (_, i) =>
-        `<path d="${teardropPath(spacing)}" transform="translate(${n(-half + (i + 0.5) * spacing)} 0)"/>`,
-    ).join('');
+    // 물방울: 크기 = width 고정, 접선 방향으로 꼭지를 정렬해 경로를 따라 흐른다.
+    const drops = samples
+      .map(
+        (s) =>
+          `<path d="${teardropPath(width)}" transform="translate(${n(s.x)} ${n(s.y)}) rotate(${n((s.angle * 180) / Math.PI + 90)})"/>`,
+      )
+      .join('');
     return `<g fill="${fill}">${drops}</g>`;
   }
 
-  // dots(원형) — 빈틈 없는 원: 반지름 = spacing/2, 중심 간격 = spacing.
-  const r = spacing / 2;
-  const dots = Array.from(
-    { length: count },
-    (_, i) => `<circle cx="${n(-half + (i + 0.5) * spacing)}" cy="0" r="${n(r)}"/>`,
-  ).join('');
+  // dots(원형) — 지름 = width 고정, 간격 = width라 서로 접한다(빈틈 없음).
+  const dots = samples
+    .map((s) => `<circle cx="${n(s.x)}" cy="${n(s.y)}" r="${n(width / 2)}"/>`)
+    .join('');
   return `<g fill="${fill}">${dots}</g>`;
 }
 
@@ -162,7 +161,7 @@ export function elementInnerMarkup(element: Element): string {
     case 'lettering':
       return letteringMarkup(element.text, element.font, element.color);
     case 'piping':
-      return pipingMarkup(element.variant, element.color, element.length, element.width);
+      return pipingMarkup(element.variant, element.color, element.points, element.width);
     case 'illustration':
       return illustrationMarkup(element);
     case 'image':

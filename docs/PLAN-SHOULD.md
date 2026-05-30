@@ -261,47 +261,45 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 
 **목표**:
 1. **파이핑 추가 패널을 손그림 패널처럼 라이브러리에서 분리**한 독립 패널로 만든다.
-2. 모양뿐 아니라 **굵기**와 **색상**을 지정할 수 있게 한다.
+2. 모양뿐 아니라 **굵기(0.2~2.0cm)**와 **색상**을 지정할 수 있게 한다.
 3. **별모양(`star-tip`) 파이핑을 제거**하고 **물방울(`teardrop`) 모양**으로 교체한다.
-4. **원형(도트)·물방울** 파이핑은 각 점 사이에 **빈 공간 없이**(점 간격 = 점 지름) 채운다.
-5. 배치된 파이핑을 선택하면 대각선(스케일) 핸들에 더해 **파이핑 방향 수평 확장 핸들**을 표시하고, 드래그하면 **파이핑 개수(런 길이)가 증감**한다.
+4. 파이핑을 **곡선 경로를 따라**(펜처럼 드래그) 그린다. 모티프 크기는 굵기로 **고정**이라 드래그 중 커졌다 작아졌다 하지 않고(경로가 길어지면 **개수만** 증가), 원형·물방울은 간격=지름이라 빈 공간 없이 이어진다.
+5. 파이핑 전용 수평 확장 핸들은 **두지 않는다**. 선택 시 다른 요소와 동일하게 대각선·회전 핸들로 이동·크기·회전만 한다.
 
-**의존**: Must editor2d/파이핑(이미 존재), Phase 3(손그림 패널 분리 패턴 참조), Phase 4(3D 읽기 전용 — 분리한 파이핑 패널도 3D에서 숨김 대상에 포함).
+**의존**: Must editor2d/파이핑(이미 존재), Phase 3(손그림 펜 경로 수집·패널 분리 패턴 재사용), Phase 4(3D 읽기 전용 — 분리한 파이핑 패널도 3D에서 숨김 대상에 포함).
 
 | 작업 | 산출물 |
 |---|---|
-| 스키마 보강 | `packages/shared/schema`의 `PipingElement`에 **`width: z.number().positive()`**(굵기, cm) 추가. `variant`는 `'dots'|'scallop'|'teardrop'`로 한정(문자열이되 카탈로그가 단일 출처) — **`star-tip` 제거**. |
-| 카탈로그 갱신 | `editor2d/elements/catalog.ts`의 `pipingVariants`에서 `별깍지(star-tip)` 제거, **`물방울(teardrop)`** 추가(`dots`/`scallop`/`teardrop`). `PIPING_HEIGHT`(고정 8cm) → **굵기 기본값·범위**로 재해석(`DEFAULT_PIPING_WIDTH`·`MIN/MAX_PIPING_WIDTH`). `elementLocalSize(piping)`의 height를 `element.width` 기반으로 계산. |
-| 마크업 갱신 | `editor2d/elements/elementSvg.ts` `pipingMarkup(variant, color, width, length)`: **`teardrop` 모양 추가**(물방울 도형), **`dots`·`teardrop`는 점 간격 = 점 지름(=`width`)** 으로 `count = max(1, round(length / width))` 개를 빈틈 없이 배치. `scallop`은 `width`를 stroke-width로 사용. `star-tip` 분기 삭제. (2D View `PipingRun`도 동일 도형·간격 공유 — 단일 출처 유지.) |
-| store 계약 확장 | `document/store`: `PipingPatch`에 **`width` 포함**(모양·색상·굵기 갱신). `pendingPiping`에 `{ variant, color, width }`. `setPendingPiping`·`updatePiping` 시그니처 확장. 수평 확장 핸들용 **`setPipingLength(id, length)`**(또는 기존 `updatePiping`로 `length` 패치) 추가. |
-| 독립 파이핑 패널 | `editor2d/panels/PipingPanel.tsx` 신설(`DrawingPanel` 패턴): 모양 선택(원형·스캘럽·물방울) + **굵기 슬라이더** + **색상 피커** → `setPendingPiping({ variant, color, width })`. **`LibraryPanel`에서 파이핑 섹션 제거.** |
-| 수평 확장 핸들 | `editor2d/tools/handles.ts`에 **파이핑 전용 수평 핸들 위치**(로컬 x축 ±half, transform·rotation 적용) 추가. 드래그 명령은 스케일이 아니라 **`length` 변경**으로 매핑 → 개수 증감. 좌표·길이 계산은 `packages/shared/geometry`의 순수 함수로(인라인 금지). |
-| 캔버스 렌더·입력 | `editor2d/canvas/NetEditor.tsx`: 선택 요소가 `piping`이면 수평 확장 핸들을 렌더하고 포인터를 tools에 위임(계산은 tools). |
-| geometry 보강 | `packages/shared/geometry`에 수평 핸들 드래그 → 새 `length` 산출 순수 함수(`pipingLengthFromHandleDrag` 류). 회전된 파이핑도 정확히 동작하도록 회전 역변환 재사용. |
-| 3D 굽기 반영 | `viewer3d/texture`가 `width`·새 `variant`(물방울)·빈틈 없는 간격을 그대로 굽도록 `pipingMarkup` 갱신 결과를 사용(마크업이 단일 출처라 자동 반영). |
-| 3D 숨김 연동(Phase 4) | 분리한 **파이핑 추가 패널**도 3D 뷰에서 숨김 대상에 포함(Phase 4 가시성 계약에 파이핑 패널 추가). |
+| 스키마 보강 | `packages/shared/schema`의 `PipingElement`을 **경로 기반**으로 — `points: {x,y}[]`(min 1, 로컬 좌표)와 `width?: positive`(굵기, cm). `length` 제거. `variant`는 원형/스캘럽/물방울(문자열, 카탈로그가 단일 출처) — **`star-tip` 제거**. |
+| 카탈로그 갱신 | `editor2d/elements/catalog.ts`의 `pipingVariants`에서 `별깍지(star-tip)` 제거, **`물방울(teardrop)`** 추가. 굵기 상수 `DEFAULT_PIPING_WIDTH=1`·**`MIN=0.2`·`MAX=2`**. `elementLocalSize(piping)`은 경로 경계상자 + 굵기 여유로 계산. (`PIPING_HEIGHT`/`PIPING_UNIT`/`pipingCount`/`MIN_PIPING_LENGTH` 제거.) |
+| 경로 샘플링(geometry) | `packages/shared/geometry`에 `resamplePath(points, spacing)`(폴리라인을 고정 간격으로 샘플 → {x,y,angle}) + `centerOfPoints(points)`(경계상자 중심). 간격 고정이라 경로가 길어져도 모티프 크기 불변·개수만 증가. |
+| 마크업 갱신 | `editor2d/elements/elementSvg.ts` `pipingMarkup(variant, color, points, width)`: 경로를 `resamplePath(points, width)`로 샘플 → **원형**=반지름 width/2 원(간격=지름→빈틈 없음), **물방울**=크기 width 드롭을 접선 방향으로 정렬, **스캘럽**=경로를 따라가는 연속 stroke(두께 width). `star-tip` 제거(미상 variant는 원형 폴백). 2D View `PipingRun`·3D 베이커가 단일 출처 공유. |
+| store 계약 | `document/store`: `PipingPatch`=`{ color?, width? }`(length 제거). `pendingPiping`=`{ variant, color, width }`, `pipingBrush`+`setPipingBrush`(그리기 모드 동기화). **`addPiping(points, variant, color, width)`** — 절대 경로를 경계상자 중심 기준 로컬 좌표로 바꿔 `transform`에 중심을 둔다(이동·스케일·회전이 transform으로 동작). |
+| 독립 파이핑 패널 | `editor2d/panels/PipingPanel.tsx` 신설(`DrawingPanel` 패턴): 모양 선택 + **굵기 슬라이더(0.2~2.0, step 0.1)** + **색상 피커** → `setPendingPiping`/`setPipingBrush`. **`LibraryPanel`에서 파이핑 섹션 제거.** |
+| 캔버스 입력·미리보기 | `editor2d/canvas/NetEditor.tsx`: 파이핑 모드에서 펜처럼 곡선 점열을 모아(`appendStrokePoint`) 라이브 미리보기(경로 모티프) → pointerup에 `addPiping`. 파이핑 전용 핸들·길이 제스처 제거(코너+회전만). |
+| 3D 굽기 반영 | `viewer3d/texture`가 `pipingMarkup`(경로·width·물방울) 갱신을 그대로 굽는다(마크업 단일 출처라 자동 반영). |
+| 3D 숨김 연동(Phase 4) | 분리한 **파이핑 추가 패널**도 3D 뷰에서 숨김 대상에 포함(`App` 셸 `view==='net'` 게이트). |
 
-### 7.1 굵기(width) 계약
-- `width`는 전개도(cm) 기준 파이핑 **굵기**다. `dots`·`teardrop`은 점/모티프의 지름(높이), `scallop`은 path stroke-width로 쓴다.
-- 점 개수 = `max(1, round(length / width))`, 점 중심 간격 = `width`(빈틈 없음). 따라서 굵기를 키우면 같은 길이에서 점이 굵어지고 개수가 준다.
+### 7.1 굵기·크기 계약
+- `width`는 전개도(cm) 기준 파이핑 **굵기**(0.2~2.0). 원형·물방울은 모티프 지름, 스캘럽은 stroke-width.
+- 모티프 **간격 = width 고정**, **크기 = width 고정**. 경로 길이에 따라 `resamplePath`가 찍는 **개수만** 변한다 → 드래그 중 크기 펄럭임 없음. 원형·물방울은 간격=지름이라 서로 접해 빈틈이 없다.
 - 기본값·범위는 카탈로그 상수(`DEFAULT/MIN/MAX_PIPING_WIDTH`)에 단일 정의.
 
-### 7.2 수평 확장 핸들 계약
-- 파이핑 선택 시에만 표시(다른 요소는 기존 대각선+회전 핸들만).
-- 위치: 요소 로컬 x축의 좌/우 중점(±length/2). transform(중심·회전·스케일) 적용해 화면에 배치.
-- 드래그: 핸들을 **파이핑 방향으로** 끌면 그 방향의 런 길이가 늘거나 줄어 `length` 갱신 → 마크업이 개수를 재계산. **스케일(transform.scale)은 바뀌지 않는다**(대각선 핸들과 책임 분리).
-- 최소 길이는 `MIN_PIPING_LENGTH`로 클램프(최소 1모티프).
+### 7.2 곡선 경로·선택 계약
+- 파이핑은 펜처럼 **곡선 경로**(점열)로 그린다. 점은 `addPiping`이 경계상자 중심 기준 로컬 좌표로 저장하고 `transform.x·y`에 중심을 둔다.
+- 선택 시 핸들은 **대각선(스케일)+회전**뿐(다른 요소와 동일). 파이핑 전용 수평 확장 핸들은 없다 — 길이 변경은 다시 그리거나 스케일로.
 
 **완료 기준 (PRD-M3 파이핑 보강 수용 기준)**:
-- [x] 파이핑 추가가 손그림처럼 **독립 패널**로 분리되고, 라이브러리 패널에는 파이핑 섹션이 없다. *(런타임 접근성 스냅샷: 좌측에 별도 "파이핑" 패널(원형/스캘럽/물방울·굵기 슬라이더·색상), "요소" 패널엔 일러스트·레터링·이미지만.)*
-- [x] 파이핑 추가 패널에서 **모양·굵기·색상**을 지정해 배치할 수 있고 결과에 반영된다. *(런타임: PipingPanel 렌더(굵기 7cm 슬라이더·색상 스와치). 배치 배선=NetEditor `addElement({type:'piping',width})`·`setPipingBrush` 동기화 단위테스트. 캔버스 드래그-생성은 기존 메커니즘 — 수동 1회 확인 권장.)*
-- [x] 별모양 파이핑이 사라지고 **물방울 모양**이 제공된다(`star-tip` 잔존 참조 0건 — grep 점검). *(catalog.test: teardrop 포함·star-tip 미포함. 런타임 버튼=원형/스캘럽/물방울. grep: functional `star-tip`/`PIPING_UNIT`/`PIPING_HEIGHT` 0건.)*
-- [x] 원형·물방울 파이핑이 점 사이 **빈 공간 없이** 그려진다(점 간격 = 점 지름). *(elementSvg.test: dots count=`pipingCount`·r=간격/2; teardrop은 count개 path. catalog.test: 간격이 굵기 ±50% 이내.)*
-- [x] 배치된 파이핑 선택 시 대각선 핸들과 **수평 확장 핸들**이 함께 표시된다. *(tools.test `edgeMidPoint` 좌/우 변 중점. NetEditor `SelectionOverlay`가 piping일 때 마름모 핸들 2개 렌더·`pickHandle`이 e/w 검출.)*
-- [x] 수평 확장 핸들 드래그로 **파이핑 개수가 증감**한다(스케일 변경 아님 — `length` 변경). *(tools.test: `applyGesture(length)`가 length만 반환·scale undefined·반대편 변 고정·최소 클램프. catalog.test: length↑ → pipingCount↑.)*
-- [x] 변경이 3D 전환 시 텍스처에 반영된다(굵기·물방울·간격). *(`pipingMarkup`이 2D View(`PipingRun`)·3D 베이커(`elementInnerMarkup`) 단일 출처 — width 인자 전달. bakeNet.test 회귀 통과.)*
-- [x] 좌표·길이 계산이 전부 `geometry` 경유(인라인 좌표 수학 0건 — grep 점검). *(핸들 위치=`applyForwardRotation`(geometry) 재사용, length 투영=scale 제스처와 동일하게 `tools/gestures`(ViewModel)에서 계산. canvas에 좌표 수식 0건.)*
-- [x] schema/store/markup/handles 단위 테스트 통과(width 패치·teardrop 마크업·빈틈 없는 간격·핸들 length 산출). *(전체 159건 통과: schema 8·catalog 14·elementSvg 6·tools 14·store 20 등.)*
+- [x] 파이핑 추가가 손그림처럼 **독립 패널**로 분리되고, 라이브러리 패널에는 파이핑 섹션이 없다. *(런타임 스냅샷: 좌측에 별도 "파이핑" 패널(원형/스캘럽/물방울·굵기 슬라이더·색상), "요소" 패널엔 일러스트·레터링·이미지만.)*
+- [x] 파이핑 추가 패널에서 **모양·굵기(0.2~2.0cm)·색상**을 지정해 그릴 수 있고 결과에 반영된다. *(런타임: 슬라이더 min=0.2·max=2·step=0.1·기본 1.0. 곡선 드래그 → 파이핑 요소 1건 생성.)*
+- [x] 별모양 파이핑이 사라지고 **물방울 모양**이 제공된다(`star-tip` 잔존 0건 — grep). *(catalog.test: teardrop 포함·star-tip 미포함. grep: functional `star-tip`/`PIPING_UNIT`/`PIPING_HEIGHT`/`length`(piping) 0건.)*
+- [x] 파이핑을 **곡선 경로**를 따라 그릴 수 있다. *(런타임: sin 곡선 드래그 → 161개 원이 경로를 따라 배치. `addPiping`이 로컬 좌표·중심 변환 — store.test.)*
+- [x] **드래그 중 모티프 크기가 일정**하고(펄럭임 없음) 경로가 길어지면 **개수만** 증가한다. *(런타임: 161개 원의 반지름이 모두 0.5(=width/2)로 동일. elementSvg.test: 길이↑→개수↑·반지름 불변. catalog.test: 크기=bbox+굵기.)*
+- [x] 원형·물방울이 점 사이 **빈 공간 없이** 이어진다(간격 = 지름). *(elementSvg.test: dots r=width/2·간격=width → 접함; teardrop은 path 다수.)*
+- [x] 파이핑 전용 **수평 확장 핸들이 없다**. 선택 시 대각선·회전 핸들만 표시된다. *(런타임: 선택 오버레이 코너 rect 4·회전 circle 1·**측면 마름모 0**. tools/handles에서 edgeMidPoint·Side·LengthGesture 제거.)*
+- [x] 변경이 3D 전환 시 텍스처에 반영된다(굵기·물방울·곡선). *(`pipingMarkup`이 2D View·3D 베이커 단일 출처 — points·width 전달. bakeNet.test 회귀 통과.)*
+- [x] 좌표·경로 계산이 전부 `geometry` 경유(인라인 좌표 수학 0건). *(샘플링=`resamplePath`, 중심=`centerOfPoints`(shared/geometry). canvas는 점 수집만.)*
+- [x] schema/store/markup/geometry 단위 테스트 통과. *(전체 154건 통과: schema 8·catalog 11·elementSvg 7·tools 10·store 21·geometry 등.)*
 
 ---
 

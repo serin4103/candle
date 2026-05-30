@@ -2,6 +2,7 @@
 // 그릴 마크업은 elementSvg(순수 빌더)가 단일 출처 — 같은 빌더를 3D 텍스처 베이커도 쓴다.
 // 여기선 그 마크업을 SVG 그룹에 주입하고 transform·식별자만 얹는다(계산 금지).
 import type { Element } from '@candle/shared';
+import type { Point } from '@candle/shared/geometry';
 import { elementInnerMarkup, pipingMarkup } from './elementSvg';
 
 export interface ElementViewProps {
@@ -16,18 +17,18 @@ export interface ElementViewProps {
 export interface PipingRunProps {
   variant: string;
   color: string;
-  /** 런 길이(cm). 이 길이에 맞춰 모티프가 반복된다. */
-  length: number;
+  /** 파이핑 경로(점열, cm). 이 경로를 따라 모티프가 일정 간격으로 찍힌다. */
+  points: Point[];
   /** 굵기(cm). 모티프 지름·스캘럽 두께. 생략 시 기본 굵기로 보강. */
   width?: number;
 }
 
 /**
- * 파이핑 런 — 중심(0,0) 기준으로 length만큼 가로로 펼쳐진 띠에 모티프를 반복한다.
- * 마크업은 elementSvg.pipingMarkup가 단일 출처. 라이브러리 미리보기와도 공유한다.
+ * 파이핑 — 경로(points)를 따라 모티프를 일정 간격(=width)으로 찍는다. 모티프 크기는 고정.
+ * 마크업은 elementSvg.pipingMarkup가 단일 출처. 드래그 미리보기·라이브러리 미리보기와도 공유한다.
  */
-export function PipingRun({ variant, color, length, width }: PipingRunProps) {
-  return <g dangerouslySetInnerHTML={{ __html: pipingMarkup(variant, color, length, width) }} />;
+export function PipingRun({ variant, color, points, width }: PipingRunProps) {
+  return <g dangerouslySetInnerHTML={{ __html: pipingMarkup(variant, color, points, width) }} />;
 }
 
 /** 요소를 그 transform대로 배치한 SVG 그룹으로 렌더한다. */

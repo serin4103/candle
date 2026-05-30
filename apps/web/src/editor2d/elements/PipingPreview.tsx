@@ -20,11 +20,15 @@ export function PipingPreview({
   width = 60,
   height = 26,
 }: PipingPreviewProps) {
-  // 모티프 3개 분량을 보여준다. viewBox는 PipingRun의 cm 단위와 동일.
-  const len = pipingWidth * 3;
-  const padX = 2;
+  // 모티프 5개 분량의 직선 샘플 경로를 보여준다. viewBox는 PipingRun의 cm 단위와 동일.
+  const len = pipingWidth * 5;
+  const points = [
+    { x: -len / 2, y: 0 },
+    { x: len / 2, y: 0 },
+  ];
+  const padX = pipingWidth;
   const vbW = len + padX * 2;
-  const vbH = pipingWidth * 2;
+  const vbH = pipingWidth * 2.4;
   return (
     <svg
       viewBox={`${-vbW / 2} ${-vbH / 2} ${vbW} ${vbH}`}
@@ -33,7 +37,7 @@ export function PipingPreview({
       style={{ display: 'block', pointerEvents: 'none' }}
       aria-hidden="true"
     >
-      <PipingRun variant={variant} color={color} length={len} width={pipingWidth} />
+      <PipingRun variant={variant} color={color} points={points} width={pipingWidth} />
     </svg>
   );
 }

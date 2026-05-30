@@ -11,6 +11,7 @@ import {
   type Shape,
 } from '@candle/shared';
 import type { Point, Viewport } from '@candle/shared/geometry';
+import { centerOfPoints } from '@candle/shared/geometry';
 import { createDefaultDesign } from './defaultDesign';
 
 /** id·zIndex 없이 추가할 요소 입력. zIndex는 생략 시 자동 부여. */
@@ -22,10 +23,8 @@ export type ElementInput = DistributiveOmit<Element, 'id' | 'zIndex'> & {
 /** 레터링 변경 가능한 필드. */
 export type LetteringPatch = Partial<Pick<Extract<Element, { type: 'lettering' }>, 'text' | 'font' | 'color'>>;
 
-/** 파이핑 변경 가능한 필드(색상·굵기·런 길이). length는 수평 확장 핸들이 갱신. */
-export type PipingPatch = Partial<
-  Pick<Extract<Element, { type: 'piping' }>, 'color' | 'width' | 'length'>
->;
+/** 파이핑 변경 가능한 필드(색상·굵기). */
+export type PipingPatch = Partial<Pick<Extract<Element, { type: 'piping' }>, 'color' | 'width'>>;
 
 /** 파이핑 그리기 모드 설정(모양·색상·굵기). */
 export interface PendingPiping {
@@ -59,7 +58,7 @@ const DEFAULT_VIEWPORT: Viewport = { panX: 0, panY: 0, zoom: 1 };
 const DEFAULT_BRUSH: Brush = { color: '#5a3b3b', width: 2 };
 
 /** 기본 파이핑 설정 — 파스텔 핑크, 기본 굵기(cm). (catalog DEFAULT_PIPING_WIDTH와 일치) */
-const DEFAULT_PIPING_BRUSH: PipingBrush = { color: '#ef9aae', width: 7 };
+const DEFAULT_PIPING_BRUSH: PipingBrush = { color: '#ef9aae', width: 1 };
 
 export interface DesignState {
   /** 현재 디자인 문서. */
@@ -105,6 +104,11 @@ export interface DesignState {
   updateIllustration: (id: string, patch: IllustrationPatch) => void;
   /** 손그림 1획 추가(PRD-S1). 점열은 전개도 절대 좌표, transform은 항등. 추가한 id 반환. */
   addDrawing: (points: Point[], color: string, width: number) => string;
+  /**
+   * 파이핑 경로 추가 — 전개도 절대 좌표 점열을 경계상자 중심 기준 로컬 좌표로 바꿔
+   * transform.x·y에 중심을 둔다(이동·스케일·회전이 transform으로 동작). 추가한 id 반환.
+   */
+  addPiping: (points: Point[], variant: string, color: string, width: number) => string;
 
   // ── 표현 상태 ──
   select: (id: string | null) => void;
@@ -259,6 +263,19 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       width,
       transform: { x: 0, y: 0, scale: 1, rotation: 0 },
     }),
+
+  addPiping: (points, variant, color, width) => {
+    const c = centerOfPoints(points);
+    return get().addElement({
+      type: 'piping',
+      variant,
+      color,
+      width,
+      // 경계상자 중심을 transform 원점으로, 점은 그 기준 로컬 좌표로 저장.
+      points: points.map((p) => ({ x: p.x - c.x, y: p.y - c.y })),
+      transform: { x: c.x, y: c.y, scale: 1, rotation: 0 },
+    });
+  },
 
   select: (id) => set({ selectedId: id }),
 

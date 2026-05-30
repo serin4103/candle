@@ -25,7 +25,7 @@ export function PipingPanel() {
   return (
     <Panel title="파이핑">
       <p style={{ fontSize: 12, color: palette.textMuted, margin: '0 0 6px' }}>
-        모양을 고르고 시트 위에서 드래그하세요.
+        모양을 고르고 시트 위에 원하는 곡선을 그리세요.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {pipingVariants.map((v) => {
@@ -53,13 +53,13 @@ export function PipingPanel() {
       </div>
 
       <div>
-        <p style={sectionLabel}>굵기 · {pipingBrush.width.toFixed(0)}cm</p>
+        <p style={sectionLabel}>굵기 · {pipingBrush.width.toFixed(1)}cm</p>
         <input
           type="range"
           aria-label="파이핑 굵기"
           min={MIN_PIPING_WIDTH}
           max={MAX_PIPING_WIDTH}
-          step={1}
+          step={0.1}
           value={pipingBrush.width}
           onChange={(e) => setPipingBrush({ width: Number(e.target.value) })}
           style={{ width: '100%', accentColor: palette.primary }}

@@ -7,7 +7,6 @@ import {
   illustrationDataUri,
   recoloredSvg,
   elementLocalSize,
-  pipingCount,
 } from './catalog';
 
 describe('카탈로그 — 3개 카테고리 제공', () => {
@@ -24,25 +23,6 @@ describe('파이핑 변형 (보강: 별모양 제거·물방울 추가)', () => 
     expect(ids).toContain('teardrop');
     expect(ids).toContain('dots');
     expect(ids).not.toContain('star-tip');
-  });
-});
-
-describe('pipingCount — 빈틈 없는 모티프 개수', () => {
-  it('개수 = round(길이/굵기), 최소 1', () => {
-    expect(pipingCount(21, 7)).toBe(3);
-    expect(pipingCount(20, 7)).toBe(3); // round(2.86)
-    expect(pipingCount(2, 7)).toBe(1); // 최소 1
-  });
-  it('길이를 늘리면 개수가 증가한다(수평 확장 핸들 동작)', () => {
-    expect(pipingCount(40, 7)).toBeGreaterThan(pipingCount(21, 7));
-  });
-  it('간격(길이/개수)이 굵기에 근접해 점이 접한다(빈틈 없음)', () => {
-    const length = 40;
-    const width = 7;
-    const spacing = length / pipingCount(length, width);
-    // 반올림이라 굵기의 ±50% 이내(점 지름≈간격 → 서로 접함).
-    expect(spacing).toBeGreaterThan(width * 0.5);
-    expect(spacing).toBeLessThan(width * 1.5);
   });
 });
 
@@ -106,7 +86,16 @@ describe('elementLocalSize', () => {
     const base = { id: 'x', zIndex: 0, transform: { x: 0, y: 0, scale: 1, rotation: 0 } };
     const sizes = [
       elementLocalSize({ ...base, type: 'illustration', assetId: 'a' }),
-      elementLocalSize({ ...base, type: 'piping', variant: 'dots', color: '#fff', length: 30 }),
+      elementLocalSize({
+        ...base,
+        type: 'piping',
+        variant: 'dots',
+        color: '#fff',
+        points: [
+          { x: -15, y: 0 },
+          { x: 15, y: 0 },
+        ],
+      }),
       elementLocalSize({ ...base, type: 'lettering', text: 'Hi', font: 'serif', color: '#000' }),
     ];
     for (const s of sizes) {
@@ -115,29 +104,35 @@ describe('elementLocalSize', () => {
     }
   });
 
-  it('파이핑 폭은 런 길이(length)를 따른다', () => {
+  it('파이핑 크기는 경로 경계상자 + 굵기 여유를 따른다', () => {
     const base = { id: 'x', zIndex: 0, transform: { x: 0, y: 0, scale: 1, rotation: 0 } };
-    const piping = (length: number) =>
-      elementLocalSize({ ...base, type: 'piping', variant: 'dots', color: '#fff', length });
-    expect(piping(40).width).toBeCloseTo(40, 6);
-    // 아주 짧아도 최소 한 모티프 폭은 유지.
-    expect(piping(0.1).width).toBeGreaterThan(0.1);
-  });
-
-  it('파이핑 높이는 굵기(width)를 따른다(없으면 기본 굵기)', () => {
-    const base = { id: 'x', zIndex: 0, transform: { x: 0, y: 0, scale: 1, rotation: 0 } };
-    const withW = elementLocalSize({
+    const size = elementLocalSize({
       ...base,
       type: 'piping',
       variant: 'dots',
       color: '#fff',
-      length: 40,
-      width: 10,
+      width: 2,
+      points: [
+        { x: -10, y: -3 },
+        { x: 10, y: 3 },
+      ],
     });
-    expect(withW.height).toBe(10);
-    // width 없으면 기본 굵기(양수)로 보강.
-    const noW = elementLocalSize({ ...base, type: 'piping', variant: 'dots', color: '#fff', length: 40 });
-    expect(noW.height).toBeGreaterThan(0);
+    // 폭 = bbox폭(20) + 굵기(2), 높이 = bbox높이(6) + 굵기(2).
+    expect(size.width).toBeCloseTo(22, 6);
+    expect(size.height).toBeCloseTo(8, 6);
+  });
+
+  it('파이핑 굵기 미지정 시 기본 굵기로 여유를 둔다(양수 크기)', () => {
+    const base = { id: 'x', zIndex: 0, transform: { x: 0, y: 0, scale: 1, rotation: 0 } };
+    const size = elementLocalSize({
+      ...base,
+      type: 'piping',
+      variant: 'dots',
+      color: '#fff',
+      points: [{ x: 0, y: 0 }],
+    });
+    expect(size.width).toBeGreaterThan(0);
+    expect(size.height).toBeGreaterThan(0);
   });
 
   it('레터링 폭은 글자 수에 비례해 커진다', () => {

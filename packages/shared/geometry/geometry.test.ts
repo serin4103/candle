@@ -12,6 +12,8 @@ import {
   applyInverseRotation,
   applyForwardRotation,
   runFromPoints,
+  centerOfPoints,
+  resamplePath,
   recomputeForSpec,
   SIZE_BASE_DIAMETER_CM,
   SIZE_STEP_CM,
@@ -225,5 +227,41 @@ describe('recomputeForSpec', () => {
     expect(r.totalHeight).toBe(totalHeight(spec));
     expect(r.circumference).toBeCloseTo(r.net.crossSection.perimeter, 9);
     expect(r.net.shape).toBe('circle');
+  });
+});
+
+describe('centerOfPoints', () => {
+  it('경계상자 중심을 구한다(없으면 원점)', () => {
+    expect(centerOfPoints([])).toEqual({ x: 0, y: 0 });
+    expect(centerOfPoints([{ x: 0, y: 20 }, { x: 20, y: 20 }])).toEqual({ x: 10, y: 20 });
+    expect(centerOfPoints([{ x: -10, y: -4 }, { x: 10, y: 4 }])).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('resamplePath (파이핑 모티프 배치)', () => {
+  it('고정 간격으로 샘플 → 경로가 길수록 개수만 증가(크기 불변)', () => {
+    const short = resamplePath([{ x: 0, y: 0 }, { x: 10, y: 0 }], 1);
+    const long = resamplePath([{ x: 0, y: 0 }, { x: 40, y: 0 }], 1);
+    expect(short.length).toBe(11); // 0,1,…,10
+    expect(long.length).toBe(41); // 0,1,…,40
+    expect(long.length).toBeGreaterThan(short.length);
+  });
+
+  it('간격이 고정이라 위치가 정확히 spacing마다 찍힌다', () => {
+    const s = resamplePath([{ x: 0, y: 0 }, { x: 10, y: 0 }], 2);
+    expect(s.map((p) => p.x)).toEqual([0, 2, 4, 6, 8, 10]);
+    expect(s.every((p) => Math.abs(p.y) < 1e-9)).toBe(true);
+  });
+
+  it('접선각을 반환한다(수평 경로=0, 수직 경로=±90°)', () => {
+    const horiz = resamplePath([{ x: 0, y: 0 }, { x: 10, y: 0 }], 5);
+    expect(horiz[0]!.angle).toBeCloseTo(0, 9);
+    const vert = resamplePath([{ x: 0, y: 0 }, { x: 0, y: 10 }], 5);
+    expect(Math.abs(vert[0]!.angle)).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it('점 1개·간격 0은 그 점 하나만', () => {
+    expect(resamplePath([{ x: 3, y: 4 }], 1)).toEqual([{ x: 3, y: 4, angle: 0 }]);
+    expect(resamplePath([{ x: 0, y: 0 }, { x: 9, y: 0 }], 0)).toHaveLength(1);
   });
 });
