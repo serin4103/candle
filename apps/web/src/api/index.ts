@@ -1,9 +1,11 @@
 // api — 백엔드 호출 클라이언트 엔트리.
 export {
+  setAuthToken,
   saveDesign,
-  loadByEdit,
+  listMyDesigns,
+  loadById,
   loadByView,
-  updateByEdit,
+  updateById,
   cloneByView,
   uploadAsset,
   assetRawSrc,

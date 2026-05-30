@@ -1,8 +1,9 @@
-// share/SharePanel — 저장·공유 흐름 UI(View). 로직은 useShareSession에 위임하고
-// 여기서는 모드별 표현만 한다. 비로그인 전제.
+// share/SharePanel — 공유 흐름 UI(View). 로직은 useShareSession에 위임하고 여기서는
+// 모드별 표현만 한다. 저장·수정 버튼은 App 셸 상단바가 맡고(PRD-S6), 이 패널은
+// 열람 링크 노출과 열람자의 복제 흐름을 담당한다.
 import { useState } from 'react';
 import { Panel, Button, palette, radius, fontStack } from '../ui';
-import { editUrl, viewUrl } from './route';
+import { viewUrl } from './route';
 import type { ShareSession } from './useShareSession';
 
 /** 복사 가능한 링크 한 줄. */
@@ -54,32 +55,23 @@ export function SharePanel({ session }: { session: ShareSession }) {
       {mode === 'view' ? (
         <>
           <p style={{ margin: 0, fontSize: 13, color: palette.textMuted }}>
-            열람 전용 링크입니다. 복제하면 내 디자인으로 수정할 수 있어요.
+            열람 전용 링크입니다. 복제하면 내 디자인으로 수정할 수 있어요(로그인 필요).
           </p>
           <Button variant="primary" disabled={busy} onClick={() => void session.clone()}>
             {status === 'saving' ? '복제 중…' : '복제해서 수정'}
           </Button>
         </>
-      ) : (
+      ) : shareLink ? (
         <>
-          <Button
-            variant="primary"
-            disabled={busy}
-            onClick={() => void (mode === 'edit' ? session.update() : session.save())}
-          >
-            {status === 'saving'
-              ? '저장 중…'
-              : mode === 'edit'
-                ? '수정 저장'
-                : '저장하고 링크 만들기'}
-          </Button>
-          {shareLink && (
-            <>
-              <LinkRow label="편집 링크 (작성자용)" url={editUrl(shareLink.editToken)} />
-              <LinkRow label="열람 링크 (공유용)" url={viewUrl(shareLink.viewToken)} />
-            </>
-          )}
+          <p style={{ margin: 0, fontSize: 13, color: palette.textMuted }}>
+            이 열람 링크로 누구나(로그인 없이) 시안을 볼 수 있어요.
+          </p>
+          <LinkRow label="열람 링크 (공유용)" url={viewUrl(shareLink.viewToken)} />
         </>
+      ) : (
+        <p style={{ margin: 0, fontSize: 13, color: palette.textMuted }}>
+          상단 <strong>저장</strong> 버튼으로 디자인을 저장하면 공유용 열람 링크가 생겨요.
+        </p>
       )}
       {status === 'loading' && (
         <p style={{ margin: 0, fontSize: 13, color: palette.textMuted }}>불러오는 중…</p>

@@ -120,10 +120,13 @@ export const Design = z.object({
 });
 export type Design = z.infer<typeof Design>;
 
-/** 공유 링크 — 편집/열람 토큰은 서로 다른 고유 값 (PRD-M5). */
+/**
+ * 공유 링크 — 비로그인 열람용 토큰 (PRD-M5).
+ * PRD-S6 로그인 도입으로 편집 링크(editToken)는 제거됐다. 편집 권한은
+ * 토큰이 아니라 소유권(`ownerId`, DB 메타)으로 제어한다.
+ */
 export const ShareLink = z.object({
   designId: z.string(),
-  editToken: z.string(),
   viewToken: z.string(),
 });
 export type ShareLink = z.infer<typeof ShareLink>;
