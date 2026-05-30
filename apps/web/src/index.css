@@ -1,0 +1,6 @@
+/* 전역 리셋 — 브라우저 기본 body 여백을 없애 앱 셸이 뷰포트를 꽉 채우게 한다.
+   (셸은 height:100vh + overflow:hidden, 스크롤은 각 패널이 내부에서 담당) */
+html,
+body {
+  margin: 0;
+}

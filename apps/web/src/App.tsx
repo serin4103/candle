@@ -130,11 +130,12 @@ export function App() {
     <div
       style={{
         fontFamily: fontStack,
-        minHeight: '100vh',
+        height: '100vh',
         background: palette.bg,
         color: palette.text,
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
       {/* 상단 브랜드바 */}
