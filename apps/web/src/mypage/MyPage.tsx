@@ -66,7 +66,7 @@ function DesignCard({ design }: { design: Design }) {
 }
 
 export function MyPage({ session }: { session: AuthSession }) {
-  const { user, status, isConfigured, signInWithGoogle } = session;
+  const { user, status, isConfigured, signInWithGoogle, signOut } = session;
   // prefetch 캐시가 있으면 즉시 그린다(stale-while-revalidate). 리로드 전 버튼
   // hover/pointerdown에서 채워둔 캐시가 있어 빈 화면 없이 바로 목록이 뜬다.
   const [designs, setDesigns] = useState<Design[] | null>(() =>
@@ -104,13 +104,18 @@ export function MyPage({ session }: { session: AuthSession }) {
     >
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <strong style={{ fontSize: 20 }}>🍰 내 디자인</strong>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Button
             variant="primary"
             onClick={() => navigate(`${window.location.origin}/`)}
           >
             새 디자인 만들기
           </Button>
+          {user && (
+            <Button onClick={() => void signOut()} aria-label="로그아웃">
+              로그아웃
+            </Button>
+          )}
         </div>
       </header>
 
