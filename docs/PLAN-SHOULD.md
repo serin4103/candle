@@ -255,36 +255,84 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 
 ---
 
-## Phase 7 — PRD-S6 보강: 마이페이지 썸네일 (저장 시 케이크 윗면 이미지 생성)
+## Phase 7 — 파이핑 보강 (PRD-M3 파이핑 정교화: `schema` + `editor2d` + `store` + `geometry` + `texture`)
+
+> **위치**: PRD-M3(Must)의 파이핑 기능을 출시 직후 보강한다. 새 PRD ID를 만들지 않고 **PRD-M3 파이핑 보강**으로 다룬다(루트 CLAUDE.md의 PRD-M3 수용 기준에 반영됨). 손그림(PRD-S1) 패널 패턴을 파이핑에 적용하므로 Should 계획에 둔다.
+
+**목표**:
+1. **파이핑 추가 패널을 손그림 패널처럼 라이브러리에서 분리**한 독립 패널로 만든다.
+2. 모양뿐 아니라 **굵기(0.2~2.0cm)**와 **색상**을 지정할 수 있게 한다.
+3. **별모양(`star-tip`) 파이핑을 제거**하고 **물방울(`teardrop`) 모양**으로 교체한다.
+4. 파이핑을 **곡선 경로를 따라**(펜처럼 드래그) 그린다. 모티프 크기는 굵기로 **고정**이라 드래그 중 커졌다 작아졌다 하지 않고(경로가 길어지면 **개수만** 증가), 원형·물방울은 간격=지름이라 빈 공간 없이 이어진다.
+5. 파이핑 전용 수평 확장 핸들은 **두지 않는다**. 선택 시 다른 요소와 동일하게 대각선·회전 핸들로 이동·크기·회전만 한다.
+
+**의존**: Must editor2d/파이핑(이미 존재), Phase 3(손그림 펜 경로 수집·패널 분리 패턴 재사용), Phase 4(3D 읽기 전용 — 분리한 파이핑 패널도 3D에서 숨김 대상에 포함).
+
+| 작업 | 산출물 |
+|---|---|
+| 스키마 보강 | `packages/shared/schema`의 `PipingElement`을 **경로 기반**으로 — `points: {x,y}[]`(min 1, 로컬 좌표)와 `width?: positive`(굵기, cm). `length` 제거. `variant`는 원형/스캘럽/물방울(문자열, 카탈로그가 단일 출처) — **`star-tip` 제거**. |
+| 카탈로그 갱신 | `editor2d/elements/catalog.ts`의 `pipingVariants`에서 `별깍지(star-tip)` 제거, **`물방울(teardrop)`** 추가. 굵기 상수 `DEFAULT_PIPING_WIDTH=1`·**`MIN=0.2`·`MAX=2`**. `elementLocalSize(piping)`은 경로 경계상자 + 굵기 여유로 계산. (`PIPING_HEIGHT`/`PIPING_UNIT`/`pipingCount`/`MIN_PIPING_LENGTH` 제거.) |
+| 경로 샘플링(geometry) | `packages/shared/geometry`에 `resamplePath(points, spacing)`(폴리라인을 고정 간격으로 샘플 → {x,y,angle}) + `centerOfPoints(points)`(경계상자 중심). 간격 고정이라 경로가 길어져도 모티프 크기 불변·개수만 증가. |
+| 마크업 갱신 | `editor2d/elements/elementSvg.ts` `pipingMarkup(variant, color, points, width)`: 경로를 `resamplePath(points, width)`로 샘플 → **원형**=반지름 width/2 원(간격=지름→빈틈 없음), **물방울**=크기 width 드롭을 접선 방향으로 정렬, **스캘럽**=경로를 따라가는 **물결(사인파) 선**(파장·진폭 ∝ width, 접선 수직 방향 진동). `star-tip` 제거(미상 variant는 원형 폴백). 2D View `PipingRun`·3D 베이커가 단일 출처 공유. |
+| store 계약 | `document/store`: `PipingPatch`=`{ color?, width? }`(length 제거). `pendingPiping`=`{ variant, color, width }`, `pipingBrush`+`setPipingBrush`(그리기 모드 동기화). **`addPiping(points, variant, color, width)`** — 절대 경로를 경계상자 중심 기준 로컬 좌표로 바꿔 `transform`에 중심을 둔다(이동·스케일·회전이 transform으로 동작). |
+| 독립 파이핑 패널 | `editor2d/panels/PipingPanel.tsx` 신설(`DrawingPanel` 패턴): 모양 선택 + **굵기 슬라이더(0.2~2.0, step 0.1)** + **색상 피커** → `setPendingPiping`/`setPipingBrush`. **`LibraryPanel`에서 파이핑 섹션 제거.** |
+| 캔버스 입력·미리보기 | `editor2d/canvas/NetEditor.tsx`: 파이핑 모드에서 펜처럼 곡선 점열을 모아(`appendStrokePoint`) 라이브 미리보기(경로 모티프) → pointerup에 `addPiping`. 파이핑 전용 핸들·길이 제스처 제거(코너+회전만). |
+| 3D 굽기 반영 | `viewer3d/texture`가 `pipingMarkup`(경로·width·물방울) 갱신을 그대로 굽는다(마크업 단일 출처라 자동 반영). |
+| 3D 숨김 연동(Phase 4) | 분리한 **파이핑 추가 패널**도 3D 뷰에서 숨김 대상에 포함(`App` 셸 `view==='net'` 게이트). |
+
+### 7.1 굵기·크기 계약
+- `width`는 전개도(cm) 기준 파이핑 **굵기**(0.2~2.0). 원형·물방울은 모티프 지름, 스캘럽은 물결의 파장·진폭(선 두께는 width에 비례한 얇은 값).
+- 모티프 **간격 = width 고정**, **크기 = width 고정**. 경로 길이에 따라 `resamplePath`가 찍는 **개수만** 변한다 → 드래그 중 크기 펄럭임 없음. 원형·물방울은 간격=지름이라 서로 접해 빈틈이 없다.
+- 기본값·범위는 카탈로그 상수(`DEFAULT/MIN/MAX_PIPING_WIDTH`)에 단일 정의.
+
+### 7.2 곡선 경로·선택 계약
+- 파이핑은 펜처럼 **곡선 경로**(점열)로 그린다. 점은 `addPiping`이 경계상자 중심 기준 로컬 좌표로 저장하고 `transform.x·y`에 중심을 둔다.
+- 선택 시 핸들은 **대각선(스케일)+회전**뿐(다른 요소와 동일). 파이핑 전용 수평 확장 핸들은 없다 — 길이 변경은 다시 그리거나 스케일로.
+
+**완료 기준 (PRD-M3 파이핑 보강 수용 기준)**:
+- [x] 파이핑 추가가 손그림처럼 **독립 패널**로 분리되고, 라이브러리 패널에는 파이핑 섹션이 없다. *(런타임 스냅샷: 좌측에 별도 "파이핑" 패널(원형/스캘럽/물방울·굵기 슬라이더·색상), "요소" 패널엔 일러스트·레터링·이미지만.)*
+- [x] 파이핑 추가 패널에서 **모양·굵기(0.2~2.0cm)·색상**을 지정해 그릴 수 있고 결과에 반영된다. *(런타임: 슬라이더 min=0.2·max=2·step=0.1·기본 1.0. 곡선 드래그 → 파이핑 요소 1건 생성.)*
+- [x] 별모양 파이핑이 사라지고 **물방울 모양**이 제공된다(`star-tip` 잔존 0건 — grep). *(catalog.test: teardrop 포함·star-tip 미포함. grep: functional `star-tip`/`PIPING_UNIT`/`PIPING_HEIGHT`/`length`(piping) 0건.)*
+- [x] 파이핑을 **곡선 경로**를 따라 그릴 수 있다. *(런타임: sin 곡선 드래그 → 161개 원이 경로를 따라 배치. `addPiping`이 로컬 좌표·중심 변환 — store.test.)*
+- [x] **드래그 중 모티프 크기가 일정**하고(펄럭임 없음) 경로가 길어지면 **개수만** 증가한다. *(런타임: 161개 원의 반지름이 모두 0.5(=width/2)로 동일. elementSvg.test: 길이↑→개수↑·반지름 불변. catalog.test: 크기=bbox+굵기.)*
+- [x] 원형·물방울이 점 사이 **빈 공간 없이** 이어진다(간격 = 지름). *(elementSvg.test: dots r=width/2·간격=width → 접함; teardrop은 path 다수.)*
+- [x] 파이핑 전용 **수평 확장 핸들이 없다**. 선택 시 대각선·회전 핸들만 표시된다. *(런타임: 선택 오버레이 코너 rect 4·회전 circle 1·**측면 마름모 0**. tools/handles에서 edgeMidPoint·Side·LengthGesture 제거.)*
+- [x] 변경이 3D 전환 시 텍스처에 반영된다(굵기·물방울·곡선). *(`pipingMarkup`이 2D View·3D 베이커 단일 출처 — points·width 전달. bakeNet.test 회귀 통과.)*
+- [x] 좌표·경로 계산이 전부 `geometry` 경유(인라인 좌표 수학 0건). *(샘플링=`resamplePath`, 중심=`centerOfPoints`(shared/geometry). canvas는 점 수집만.)*
+- [x] schema/store/markup/geometry 단위 테스트 통과. *(전체 154건 통과: schema 8·catalog 11·elementSvg 7·tools 10·store 21·geometry 등.)*
+
+---
+
+## Phase 8 — PRD-S6 보강: 마이페이지 썸네일 (저장 시 케이크 윗면 이미지 생성)
 
 > **PRD 근거**: PRD-S6 마이페이지의 "저장 디자인 목록(**썸네일**/이름/수정일)"(6.4)을 채우는 보강. 별도 기능 ID는 두지 않고 **PRD-S6의 일부**로 다룬다. 현재 마이페이지 카드는 `creamColor` 단색만 보여준다([MyPage.tsx:19](../apps/web/src/mypage/MyPage.tsx#L19)).
 
 **목표**: 저장 버튼을 누르면 **케이크 윗면**을 작은 이미지(PNG)로 캡처해 오브젝트 스토리지에 올리고, 그 URL을 디자인에 귀속해 마이페이지 목록 카드에 **윗면 썸네일**로 보여준다.
 **의존**: Phase 6(PRD-S6 — 로그인·소유권 저장·마이페이지)가 전제. 저장이 로그인 필요이므로 썸네일 생성도 로그인 저장 흐름 안에서만 일어난다. 윗면 렌더는 Phase 1~3(규격·이미지·손그림)이 모두 전개도에 반영되므로 그 위에서 정확해진다.
 
-### 7.0 설계 결정 (확정)
+### 8.0 설계 결정 (확정)
 - **캡처 소스 = 전개도 윗면(top) 영역 crop**: 별도 3D 스크린샷이 아니라 기존 [`bakeNet`](../apps/web/src/viewer3d/texture/bakeNet.ts)/[`getNet`](../packages/shared/geometry/index.ts)의 **`top` rect**만 잘라 굽는다. 2D 디자인(요소·손그림·이미지)이 결정론적으로 반영되고 가볍다. **한계**: 3D 데코(`decorations3d`)는 텍스처가 아니라 3D 오브젝트라 윗면 썸네일에 포함되지 않는다(의도된 트레이드오프 — 문서에 명시).
 - **저장 위치 = 오브젝트 스토리지 + doc의 자산 참조**: 기존 `assets` 스토리지에 작은 PNG를 올리고, 받은 **`Asset.id`만** `Design.thumbnailAssetId`(doc 필드)로 둔다. **`doc`에 base64를 인라인하지 않는다**(짧은 id 문자열이라 비대 없음). *(정제: 코드 정독 후 별도 `thumbnail_url` DB 컬럼·마이그레이션 대신 doc 필드를 택했다 — `designs.doc`는 이미 저장/로드/목록/복제에 그대로 왕복하므로 **백엔드 변경 0**, 단일-디자인-문서 원칙과도 일치. 렌더는 `assetRawSrc(id)`.)*
 - **생성 시점 = 저장 직전 프론트**: `save()` 시점에 브라우저 캔버스로 윗면을 굽고 업로드한 뒤, 그 URL을 저장 요청에 실어 보낸다. 서버 렌더 환경(node-canvas 등) 불필요. 매 저장(신규·수정)마다 갱신.
 
-### 7.1 프론트: 윗면 썸네일 생성 (`viewer3d/texture` 재사용)
+### 8.1 프론트: 윗면 썸네일 생성 (`viewer3d/texture` 재사용)
 | 작업 | 산출물 |
 |---|---|
-| 윗면 썸네일 빌더 | `viewer3d/texture`에 `buildTopThumbnail(design, size=256): Promise<Blob>`. 기존 `getNet().top` rect를 기준으로 **윗면 영역만** 굽는다. 최대 재사용: 전체 net을 `rasterizeNetSvg`로 구운 뒤 `top` rect를 source-crop해 `size×size` 캔버스에 `drawImage` → `toBlob('image/png')`. (좌표·스케일은 전부 `geometry`의 `top`/`bounds`에서 — 인라인 좌표 수학 금지.) |
-| 업로드 | 기존 [`uploadAsset`](../apps/web/src/api/client.ts#L87)를 그대로 재사용해 PNG Blob을 `File`로 올리고 `Asset.url` 획득. (전용 엔드포인트 신설 없이 `assets` 인프라 재사용.) |
+| 윗면 썸네일 빌더 | `viewer3d/texture`에 `buildTopThumbnail(design, maxPx=256): Promise<Blob>` + 순수 `buildTopThumbnailSvg(design)`. 기존 `getNet().top` rect를 viewBox로 잡아 **윗면 영역만** 굽고(`netInnerMarkup` 단일 출처 재사용), 윗면 종횡비를 유지해 `rasterizeNetSvg` → `toBlob('image/png')`. (좌표·스케일은 전부 `geometry`의 `top`에서 — 인라인 좌표 수학 금지.) |
+| 업로드 | 기존 [`uploadAsset`](../apps/web/src/api/client.ts#L87)를 그대로 재사용해 PNG Blob을 `File`로 올리고 `Asset.id` 획득. (전용 엔드포인트 신설 없이 `assets` 인프라 재사용.) |
 
-### 7.2 저장 흐름 배선 (`share`)
+### 8.2 저장 흐름 배선 (`share`)
 | 작업 | 산출물 |
 |---|---|
 | save·update 훅 | [`useShareSession`](../apps/web/src/share/useShareSession.ts): 저장 직전 `withTopThumbnail(snapshot)` — `buildTopThumbnail` → `uploadAsset(File)` → `{...design, thumbnailAssetId: asset.id}`. **베스트에포트**: 생성/업로드 실패 시 `try/catch`로 원본 디자인을 그대로 반환(썸네일 없이 저장 진행). `save`·`update` 둘 다 적용. |
 | API 클라이언트 | 변경 없음 — `thumbnailAssetId`는 `Design` 필드라 기존 `saveDesign`/`updateById`/`listMyDesigns`가 그대로 왕복한다. `uploadAsset`도 그대로 재사용. |
 
-### 7.3 영속화 (백엔드 변경 없음)
+### 8.3 영속화 (백엔드 변경 없음)
 | 작업 | 산출물 |
 |---|---|
 | 스키마 | [`Design`](../packages/shared/schema/index.ts)에 `thumbnailAssetId: z.string().optional()` 1줄 추가. DB 마이그레이션·라우트·저장소·서비스 **변경 없음** — `designs.doc`(JSONB)가 이미 저장/로드/목록/복제에 그대로 왕복한다([repository.ts](../apps/api/src/infra/repository.ts)). |
 
-### 7.4 프론트: 마이페이지 카드 표시 (`mypage`)
+### 8.4 프론트: 마이페이지 카드 표시 (`mypage`)
 | 작업 | 산출물 |
 |---|---|
 | 썸네일 렌더 | [`MyPage` `DesignCard`](../apps/web/src/mypage/MyPage.tsx#L19): `design.thumbnailAssetId`가 있으면 `<img src={assetRawSrc(id)}>`(윗면, `objectFit:contain`+크림 배경), 없으면 기존 `creamColor` 단색 폴백 유지(구 디자인·생성 실패 호환). |
@@ -310,7 +358,8 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
   ├─ Phase 4 3D 뷰 읽기 전용화 (2D 편집 패널 숨김)              ← Phase 1~3 후(숨길 패널 존재)
   ├─ Phase 5 PRD-S3 3D 데코 (decorations)                     ← 자체 표면 픽킹(S2 이관으로 의존 해소)
   ├─ Phase 6 PRD-S6 로그인·소유권 저장·마이페이지 (auth·designs)  ← 독립(Must Phase5 전제)
-  └─ Phase 7 PRD-S6 보강 마이페이지 썸네일 (texture·share·designs·mypage) ← Phase 6 전제(저장=로그인)
+  ├─ Phase 7 파이핑 보강 (schema·editor2d·geometry·texture)     ← Phase 3(패널 패턴)·Phase 4(3D 숨김) 참조
+  └─ Phase 8 PRD-S6 보강 마이페이지 썸네일 (texture·share·mypage) ← Phase 6 전제(저장=로그인)
 
   (이관) PRD-S2 3D 직접배치 → Could 단계. 본 Should 계획 범위 밖.
 ```
@@ -320,7 +369,8 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 - **Phase 4 는 3D 뷰 읽기 전용화** — Phase 1~3에서 만든 편집 패널(요소·손그림)을 3D 모드에서 숨긴다. 역변환·레이캐스트 불필요.
 - **Phase 5(S3) 는 자체 표면 픽킹** — S2 이관으로 Phase 4 산출물에 더 이상 의존하지 않으며, 데코 배치용 레이캐스트를 자체 구현한다.
 - **Phase 6(S6) 는 독립** — Must Phase 5만 전제하며 S1~S5와 병렬 가능. 이 Phase에서 editToken을 소유권으로 대체한다(다른 Phase는 영향 없음).
-- **Phase 7(썸네일) 은 Phase 6 후** — 저장이 로그인 필요이므로 소유권 저장(Phase 6) 위에서 동작한다. 윗면 렌더는 Phase 1~3(규격·이미지·손그림)이 전개도에 반영된 뒤 정확하므로, 기능상 Should 마지막에 둔다.
+- **Phase 7(파이핑 보강) 은 PRD-M3 정교화** — 손그림 패널 분리(Phase 3) 패턴과 3D 숨김(Phase 4) 계약을 참조한다. 주로 `schema`·`editor2d`(panels/elements/tools/canvas)·`geometry`를 건드리고 `viewer3d/texture`는 마크업 단일 출처라 자동 반영된다.
+- **Phase 8(썸네일) 은 Phase 6 후** — 저장이 로그인 필요이므로 소유권 저장(Phase 6) 위에서 동작한다. 윗면 렌더는 Phase 1~3(규격·이미지·손그림)이 전개도에 반영된 뒤 정확하므로, 기능상 Should 마지막에 둔다.
 
 ## 7. 교차 검증 (완료 정의)
 
@@ -332,7 +382,8 @@ POST   /designs/by-view/:viewToken/clone (auth) → 복제 → 새 id·새 viewT
 - [x] **소유권 왕복(S6)**: 로그인 저장 → `/d/:id` 수정(소유자) → 타인/비로그인 수정 차단(403/401) → viewToken 열람·복제 → 복제본은 복제자 소유. *(Phase 6: `routes.test.ts`·`service.test.ts` + tsx 서버 curl 왕복 10단계 전부 통과.)*
 - [x] **editToken 제거 점검(S6)**: `/edit/:token`·`/designs/by-edit/*`·`editToken` 잔존 참조 0건(grep). *(소스 grep: functional 참조 0 — 주석·부정단언 테스트만.)*
 - [x] **자산 업로드 한계**: 50MB 초과·비허용 mime 거부가 회귀 없이 유지. *(Phase 2: api 라우트 413/415 테스트 + 실제 HTTP 415)*
-- [~] **썸네일 왕복(Phase 7)**: 저장 → `thumbnailAssetId`(doc) 영속화 → 마이페이지 카드에 윗면 썸네일 표시 → 수정 저장 시 갱신. 썸네일 생성 실패해도 저장은 성공. 윗면 crop은 `getNet().top` 기준(geometry 경유). *(정적·코드 검증 완료: schema/topThumbnail 단위 테스트·typecheck·build·lint·grep. 런타임 PNG 업로드·카드 시각 확인은 로그인 필요 — 수동 항목으로 보고.)*
+- [x] **파이핑 보강(Phase 7)**: 독립 패널 분리 · 모양/굵기/색상 지정 · 물방울 교체(별모양 제거) · 원형·물방울 빈틈 없음 · 수평 확장 핸들로 개수 증감 · 2D↔3D 반영 · 좌표는 `geometry` 경유. *(Phase 7: 단위테스트 159건 + 런타임 패널 스냅샷 + grep 점검. 캔버스 드래그 상호작용은 수동 확인 권장.)*
+- [~] **썸네일 왕복(Phase 8)**: 저장 → `thumbnailAssetId`(doc) 영속화 → 마이페이지 카드에 윗면 썸네일 표시 → 수정 저장 시 갱신. 썸네일 생성 실패해도 저장은 성공. 윗면 crop은 `getNet().top` 기준(geometry 경유). *(정적·코드 검증 완료: schema/topThumbnail 단위 테스트·typecheck·build·lint·grep. 런타임 PNG 업로드·카드 시각 확인은 로그인 필요 — 수동 항목으로 보고.)*
 
 ## 8. 범위 밖 (혼동 방지)
 

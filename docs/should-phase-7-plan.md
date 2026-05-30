@@ -1,44 +1,49 @@
-# Should Phase 7 실행 plan — 마이페이지 썸네일 (저장 시 케이크 윗면 이미지)
+# Should Phase 7 상세 실행 plan — 파이핑 보강
 
-- **소스 문서**: [docs/PLAN-SHOULD.md](./PLAN-SHOULD.md) · **Phase 7** (PRD-S6 보강)
+- **소스 문서**: [docs/PLAN-SHOULD.md](./PLAN-SHOULD.md) Phase 7
+- **PRD 근거**: 루트 [CLAUDE.md](../CLAUDE.md) PRD-M3(파이핑 보강)
 - **생성일**: 2026-05-30
-- **목표**: 저장 시 케이크 **윗면**을 작은 PNG로 캡처해 오브젝트 스토리지에 올리고, 그 참조를 디자인에 귀속해 마이페이지 카드에 썸네일로 보여준다.
 
-## 확정 설계 (사용자 결정 + 코드 정독 후 정제)
+## 목표 (소스 Phase 7)
+1. 파이핑 추가 패널을 손그림 패널처럼 라이브러리에서 **분리한 독립 패널**로.
+2. 모양 + **굵기** + **색상** 지정.
+3. 별모양(`star-tip`) 제거 → **물방울(`teardrop`)** 추가.
+4. 원형(도트)·물방울은 **점 사이 빈 공간 없이**(점 간격 = 점 지름) 채움.
+5. 선택 시 대각선 핸들 + **파이핑 방향 수평 확장 핸들**, 드래그하면 **개수(런 길이) 증감**.
 
-사용자 결정(추천안): ① 캡처 소스 = **전개도 윗면(top) crop**, ② 저장 = **오브젝트 스토리지(파일), base64 인라인 금지**, ③ 생성 시점 = **저장 직전 프론트**.
-
-코드 정독 후 정제 — **참조는 DB 컬럼이 아니라 `Design.thumbnailAssetId`(doc 필드)로 둔다**:
-- 이유: `designs.doc`(JSONB)는 이미 저장/로드/목록/복제에 그대로 왕복한다([repository.ts](../apps/api/src/infra/repository.ts), [supabase.ts](../apps/api/src/infra/supabase.ts)). 짧은 asset id 문자열만 더하므로 **doc 비대 없음**(base64 아님). 백엔드 변경 0 — 마이그레이션·라우트 바디 변경·시그니처 churn 없음.
-- 저장 메커니즘은 그대로 **오브젝트 스토리지**: 썸네일 PNG를 기존 `POST /assets`로 올리고([assets/service.ts](../apps/api/src/assets/service.ts)) 받은 `Asset.id`만 doc에 둔다. 렌더는 기존 이미지 요소와 동일하게 [`assetRawSrc(id)`](../apps/web/src/api/client.ts#L103)로 절대 URL을 구성.
-- 단일 디자인 문서 원칙(CLAUDE.md)과도 일치 — 썸네일 참조가 문서와 함께 직렬화된다(복제 시 원본 썸네일을 물려받고, 재저장 시 갱신).
+## 설계 결정 (코드 근거)
+- **`width`는 schema에서 optional**(`z.number().positive().optional()`)로 둔다 — 기존 저장 디자인·테스트(`bakeNet.test`는 width 없이 piping 생성)가 깨지지 않게 하고, 렌더·생성 시 `DEFAULT_PIPING_WIDTH`로 보강한다. 패널은 항상 width를 채워 추가한다. (확장 훅 원칙: 부족한 필드만 보강.)
+- **빈틈 없는 배치**: `count = max(1, round(length / width))`, `spacing = length / count`, 점 지름 = `spacing`(서로 접함). 길이를 늘리면 count가 늘어 개수 증감 요구(5)를 자동 충족.
+- **수평 핸들 = length 변경**(스케일 불변). 반대편 변 중점을 고정점으로 두고 포인터를 축에 투영해 새 length·중심을 계산 — 기존 대각 스케일 제스처와 동일한 투영 방식(`tools/gestures`)을 따른다. 좌표 변환은 `shared/geometry`(`applyForwardRotation`) 재사용.
+- `star-tip`은 카탈로그에서 제거하되 `pipingMarkup`은 미상 variant를 dots로 폴백 → 옛 데이터 안전.
 
 ## 작업 항목
-
-- [x] W1 (schema) `packages/shared/schema/index.ts`의 `Design`에 `thumbnailAssetId: z.string().optional()` 추가. 왜: 윗면 썸네일 asset 참조를 문서에 귀속(단일 출처). — depends-on: 없음
-- [x] W2 (viewer3d/texture) `bakeNet.ts`에서 윗면 path+옆면 rect+요소 마크업을 `netInnerMarkup(design, net)`로 추출해 `buildNetSvg`가 재사용(중복 구현 금지). 왜: 썸네일이 같은 마크업을 윗면 viewBox로만 다시 써야 함. — depends-on: 없음 *(기존 bakeNet 10건 그린 — 출력 보존 회귀 확인)*
-- [x] W3 (viewer3d/texture) `topThumbnail.ts` 신설: `buildTopThumbnailSvg(design)`(viewBox=`net.top` rect, 순수 문자열) + `buildTopThumbnail(design, maxPx=256): Promise<Blob>`(rasterize→PNG toBlob). `index.ts`에서 export. 왜: 윗면만 잘라 PNG 생성(Phase 7.1). 좌표·스케일은 `getNet().top`에서만(인라인 좌표 수학 금지). — depends-on: W2
-- [x] W4 (share) `useShareSession.save`·`update`에 베스트에포트 썸네일 단계 추가: `buildTopThumbnail` → `uploadAsset(File)` → `thumbnailAssetId`를 저장 스냅샷에 주입(`withTopThumbnail`, try/catch). 실패해도 저장 진행. 왜: 저장 흐름 배선(Phase 7.2). — depends-on: W1, W3
-- [x] W5 (mypage) `MyPage` `DesignCard`: `design.thumbnailAssetId` 있으면 `<img src={assetRawSrc(id)}>`(윗면), 없으면 기존 `creamColor` 단색 폴백 유지. 왜: 카드 표시(Phase 7.4). — depends-on: W1
-- [x] W6 (test) `topThumbnail.test.ts` 4건(viewBox=net.top·전체bounds 아님·요소/크림 포함·순수) + `schema.test.ts` `thumbnailAssetId` optional 왕복 1건. 왜: 완료 기준 증거. — depends-on: W1, W3
-- [x] W7 (docs) [PLAN-SHOULD.md](./PLAN-SHOULD.md) Phase 7(7.0/7.2/7.3/7.4) 문구를 doc-필드 방식으로 동기화하고 증거 있는 완료 기준 체크. — depends-on: W4·W5·W6 검증
-
-> **런타임 수동 항목**(로그인+Supabase 필요 — Phase 6과 동일): 실제 저장 시 PNG 인코딩·`/assets` 업로드, 마이페이지 카드 썸네일 시각 확인, 수정 저장 갱신. canvas `toBlob`/`drawImage` 경로는 라이브 3D 텍스처가 쓰는 `rasterizeNetSvg`와 동일 API라 리스크 낮음.
+- [x] W1 (shared/schema) `PipingElement`에 `width?: number(positive)` 추가 — depends-on: 없음
+- [x] W2 (editor2d/elements/catalog) `pipingVariants` 별→물방울 교체, `DEFAULT/MIN/MAX_PIPING_WIDTH` 상수, `pipingCount(length,width)` 헬퍼, `elementLocalSize(piping)` height=width 기반 — depends-on: 없음
+- [x] W3 (editor2d/elements/elementSvg) `pipingMarkup(variant,color,length,width)` — teardrop path 추가, dots/teardrop 빈틈 없는 배치, scallop은 width를 두께로, star-tip 분기 제거 — depends-on: W2
+- [x] W4 (editor2d/elements ElementView·PipingPreview) `PipingRun`에 `width` prop, 미리보기 width 기반 — depends-on: W3
+- [x] W5 (document/store) `PipingPatch`에 `width`·`length` 추가, `pendingPiping`에 width, `setPendingPiping`/`updatePiping` 시그니처 확장 — depends-on: W1
+- [x] W6 (editor2d/tools) `handles.ts`에 `edgeMidPoint(e|w)`·`SideHandle` 추가, `gestures.ts`에 `LengthGesture`(`beginLength`/`applyLength`)와 `TransformPatch.length` — depends-on: 없음
+- [x] W7 (editor2d/canvas NetEditor) 수평 핸들 렌더(SelectionOverlay)·`pickHandle` 확장·length 제스처 위임, piping 생성/미리보기에 width 반영 — depends-on: W4, W5, W6
+- [x] W8 (editor2d/panels) `PipingPanel.tsx` 신설(모양·굵기·색상), `LibraryPanel`에서 파이핑 섹션 제거, `panels/index.ts` export, `App.tsx`에 렌더(2D 전용이라 `view==='net'` 게이트로 3D 자동 숨김) — depends-on: W2, W5
+- [x] W9 (tests) schema width, catalog 물방울/상수, elementSvg 빈틈 없음·teardrop, gestures length, store width/length 패치 — depends-on: W1~W8
 
 ## 실행 계획 (병렬성)
+- **Wave 1 (병렬):** W1(schema), W2(catalog), W6(tools) — 서로 다른 패키지/파일, 공유 상태 없음
+- **Wave 2 (병렬):** W3(elementSvg ← W2), W5(store ← W1) — 서로 다른 파일
+- **Wave 3 (병렬):** W4(ElementView/Preview ← W3), W8(PipingPanel/LibraryPanel/App ← W2,W5) — 서로 다른 파일
+- **Wave 4 (순차):** W7(NetEditor ← W4,W5,W6) — 핸들·제스처·width 통합 지점
+- **Wave 5 (순차):** W9(테스트) — 구현 전체 검증
 
-- **Wave 1 (병렬 가능):** W1, W2 — 서로 다른 패키지/파일(`shared/schema` vs `web/viewer3d/texture`), 공유 상태 없음.
-- **Wave 2 (병렬 가능):** W3 — W2의 `netInnerMarkup`에 의존(같은 모듈이라 W2 직후).
-- **Wave 3 (병렬 가능):** W4, W5, W6 — 서로 다른 파일(`share` vs `mypage` vs `texture/*.test`), W1·W3 산출물 소비. 공유 쓰기 없음.
-- **Wave 4 (순차):** W7 — 검증 통과 후 문서 동기화.
-
-## 검증 (3종)
-
-1. 정적: `pnpm -r typecheck`, `pnpm -r test`, `pnpm -r build`, `pnpm lint`.
-2. 완료 기준 매핑: 아래 Phase 7 완료 기준 7개 각각에 증거(테스트/빌드/런타임) 연결.
-3. 런타임 스모크: web 빌드 통과 + (가능 시) dev 서버에서 저장→마이페이지 카드 썸네일 확인. canvas 래스터화는 브라우저 의존이라 단위 테스트는 순수 SVG까지 검증하고, 픽셀 확인은 수동 항목으로 보고.
-
-## 범위 밖
-
-- 3D 데코(`decorations3d`)는 윗면 썸네일에 미포함(텍스처 아님 — Phase 7.0 명시).
-- DB 컬럼/마이그레이션은 하지 않는다(doc 필드로 대체).
+## 완료 기준 (소스 Phase 7)
+- [x] 파이핑 추가가 독립 패널로 분리되고 라이브러리에 파이핑 섹션이 없다.
+- [x] 패널에서 모양·굵기·색상을 지정해 배치하고 결과 반영.
+- [x] 별모양 제거 + 물방울 제공(`star-tip` 잔존 0건 grep).
+- [x] 원형·물방울이 빈 공간 없이 그려진다(간격 = 지름).
+- [x] 선택 시 대각선 + 수평 확장 핸들 표시.
+- [x] 수평 핸들 드래그로 개수 증감(length 변경, 스케일 불변).
+- [x] 3D 전환 시 텍스처 반영(마크업 단일 출처).
+- [x] 좌표·길이 계산 geometry/gestures 경유(인라인 좌표 수학 0건 grep).
+- [x] 단위 테스트 통과.
+</content>
+</invoke>

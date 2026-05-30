@@ -137,11 +137,11 @@ export const illustrations: IllustrationAsset[] = Object.entries(ILLUSTRATION_RA
   })
   .sort((a, b) => a.id.localeCompare(b.id));
 
-/** 파이핑 변형(PRD-M3 카테고리 3). */
+/** 파이핑 변형(PRD-M3 카테고리 3). 별모양 제거, 물방울 추가. */
 export const pipingVariants: PipingVariant[] = [
-  { id: 'dots', label: '도트' },
+  { id: 'dots', label: '원형' },
   { id: 'scallop', label: '스캘럽' },
-  { id: 'star-tip', label: '별깍지' },
+  { id: 'teardrop', label: '물방울' },
 ];
 
 /** 레터링 폰트(PRD-M3 카테고리 2). */
@@ -159,12 +159,11 @@ export function illustrationAsset(assetId: string): IllustrationAsset | undefine
 // ── 로컬 크기(스케일 1, 전개도 cm) ─────────────────────────────────
 /** 일러스트 긴 변(cm). 비율에 맞춰 다른 변을 줄인다. */
 export const ILLUSTRATION_SIZE = 14;
-/** 파이핑 띠 높이(cm). */
-export const PIPING_HEIGHT = 8;
-/** 파이핑 모티프(반복 단위) 길이(cm). 런 길이를 이 값으로 나눠 반복 횟수를 정한다. */
-export const PIPING_UNIT = 7;
-/** 파이핑 런 최소 길이(cm) — 클릭만 해도 최소 한 모티프는 보이도록. */
-export const MIN_PIPING_LENGTH = PIPING_UNIT;
+/** 파이핑 기본 굵기(cm) — width 미지정 시 보강값. 모티프(점/물방울) 지름·스캘럽 두께. */
+export const DEFAULT_PIPING_WIDTH = 1;
+/** 파이핑 굵기 범위(cm). */
+export const MIN_PIPING_WIDTH = 0.2;
+export const MAX_PIPING_WIDTH = 2;
 /** 레터링 폰트 크기(cm)와 글자당 가로 비율. */
 export const LETTER_FONT_CM = 9;
 const LETTER_ASPECT = 0.62;
@@ -179,9 +178,19 @@ export function elementLocalSize(element: Element): { width: number; height: num
         height: LETTER_FONT_CM * 1.1,
       };
     }
-    case 'piping':
-      // 드래그한 런 길이가 곧 가로 폭.
-      return { width: Math.max(MIN_PIPING_LENGTH, element.length), height: PIPING_HEIGHT };
+    case 'piping': {
+      // 곡선 경로의 경계 상자 + 모티프 굵기만큼 여유(점이 경로 밖으로 굵기/2 만큼 번짐).
+      const w = element.width ?? DEFAULT_PIPING_WIDTH;
+      if (element.points.length === 0) return { width: w, height: w };
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of element.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { width: maxX - minX + w, height: maxY - minY + w };
+    }
     case 'illustration': {
       // 긴 변을 ILLUSTRATION_SIZE로 두고 비율대로 다른 변을 맞춘다.
       const aspect = illustrationAsset(element.assetId)?.aspect ?? 1;

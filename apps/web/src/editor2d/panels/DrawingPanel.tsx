@@ -47,29 +47,34 @@ export function DrawingPanel() {
         </Button>
       </div>
 
-      <div>
-        <p style={sectionLabel}>굵기 · {brush.width.toFixed(1)}cm</p>
-        <input
-          type="range"
-          aria-label="브러시 굵기"
-          min={MIN_WIDTH}
-          max={MAX_WIDTH}
-          step={0.1}
-          value={brush.width}
-          onChange={(e) => setBrush({ width: Number(e.target.value) })}
-          style={{ width: '100%', accentColor: palette.primary }}
-        />
-      </div>
+      {/* 굵기·색상은 펜으로 그릴 때만 의미가 있으므로 펜 선택 시에만 노출(지우개는 획 단위 삭제). */}
+      {drawingTool === 'pen' && (
+        <>
+          <div>
+            <p style={sectionLabel}>굵기 · {brush.width.toFixed(1)}cm</p>
+            <input
+              type="range"
+              aria-label="브러시 굵기"
+              min={MIN_WIDTH}
+              max={MAX_WIDTH}
+              step={0.1}
+              value={brush.width}
+              onChange={(e) => setBrush({ width: Number(e.target.value) })}
+              style={{ width: '100%', accentColor: palette.primary }}
+            />
+          </div>
 
-      <div>
-        <p style={sectionLabel}>색상</p>
-        <ColorPicker
-          label="브러시 색"
-          value={brush.color}
-          swatches={BRUSH_SWATCHES}
-          onChange={(color) => setBrush({ color })}
-        />
-      </div>
+          <div>
+            <p style={sectionLabel}>색상</p>
+            <ColorPicker
+              label="브러시 색"
+              value={brush.color}
+              swatches={BRUSH_SWATCHES}
+              onChange={(color) => setBrush({ color })}
+            />
+          </div>
+        </>
+      )}
     </Panel>
   );
 }

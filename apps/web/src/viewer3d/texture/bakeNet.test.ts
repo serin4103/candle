@@ -67,7 +67,11 @@ describe('buildNetSvg', () => {
             type: 'piping',
             variant: 'dots',
             color: '#ff00aa',
-            length: 21,
+            width: 1,
+            points: [
+              { x: -10, y: 0 },
+              { x: 10, y: 0 },
+            ],
             transform: { x: 5, y: 5, scale: 1, rotation: 0 },
             zIndex: 0,
           },

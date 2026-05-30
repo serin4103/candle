@@ -6,7 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { palette, fontStack, radius, shadow, Button, Panel } from './ui';
 import { CakeControls, ColorControls } from './cake';
 import { NetEditor } from './editor2d/canvas';
-import { LibraryPanel, PropertiesPanel, DrawingPanel } from './editor2d/panels';
+import { LibraryPanel, PropertiesPanel, DrawingPanel, PipingPanel } from './editor2d/panels';
 import { useResolveImageAssets } from './editor2d/elements';
 import { CakeViewer3D } from './viewer3d';
 import { ShareModal, useShareSession, myPageUrl, navigate } from './share';
@@ -130,11 +130,12 @@ export function App() {
     <div
       style={{
         fontFamily: fontStack,
-        minHeight: '100vh',
+        height: '100vh',
         background: palette.bg,
         color: palette.text,
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
       {/* 상단 브랜드바 */}
@@ -216,6 +217,7 @@ export function App() {
             <>
               <CakeControls />
               <LibraryPanel />
+              <PipingPanel />
               <DrawingPanel />
             </>
           )}

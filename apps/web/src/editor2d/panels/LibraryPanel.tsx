@@ -9,9 +9,7 @@ import { uploadAsset } from '../../api';
 import { Panel, Button, palette } from '../../ui';
 import {
   illustrations,
-  pipingVariants,
   letteringFonts,
-  PipingPreview,
   illustrationDataUri,
   fileToImageAsset,
   registerImageAsset,
@@ -21,8 +19,6 @@ import {
 const IMAGE_ACCEPT = 'image/png,image/jpeg,image/svg+xml';
 
 const DEFAULT_LETTER_COLOR = '#5a3b3b';
-/** 파이핑 기본색 — 크림 위·미리보기에서 잘 보이는 파스텔 핑크. */
-const DEFAULT_PIPING_COLOR = palette.primary;
 
 /** transform 없이 추가할 요소 입력(유니온 보존을 위해 분배 Omit). */
 type AddInput = ElementInput extends infer T
@@ -36,8 +32,6 @@ export function LibraryPanel() {
   const spec = useDesignStore((s) => s.design.spec);
   const addElement = useDesignStore((s) => s.addElement);
   const select = useDesignStore((s) => s.select);
-  const pendingPiping = useDesignStore((s) => s.pendingPiping);
-  const setPendingPiping = useDesignStore((s) => s.setPendingPiping);
 
   // 새 요소는 옆면(전개) 중앙에 놓는다(전개도 좌표 — 옆면 위치 반영).
   const net = getNet(shape, spec);
@@ -131,33 +125,6 @@ export function LibraryPanel() {
         >
           + 텍스트 추가
         </Button>
-      </div>
-
-      <div>
-        <p style={sectionLabel}>파이핑</p>
-        <p style={{ fontSize: 12, color: palette.textMuted, margin: '0 0 6px' }}>
-          모양을 고르고 시트 위에서 드래그하세요.
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {pipingVariants.map((v) => {
-            const active = pendingPiping?.variant === v.id;
-            return (
-              <Button
-                key={v.id}
-                active={active}
-                aria-pressed={active}
-                aria-label={v.label}
-                title={v.label}
-                style={{ width: 70, height: 40, display: 'grid', placeItems: 'center', padding: 0 }}
-                onClick={() =>
-                  setPendingPiping(active ? null : { variant: v.id, color: DEFAULT_PIPING_COLOR })
-                }
-              >
-                <PipingPreview variant={v.id} color={DEFAULT_PIPING_COLOR} />
-              </Button>
-            );
-          })}
-        </div>
       </div>
 
       <div>

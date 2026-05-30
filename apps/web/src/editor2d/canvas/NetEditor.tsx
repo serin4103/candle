@@ -3,17 +3,11 @@
 // tools(ViewModel)로 위임한다. 계산 금지: 좌표 변환은 SVG CTM, 히트테스트·
 // 제스처 수학은 tools/shared-geometry. store를 구독해 렌더만 한다.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getNet, runFromPoints, sideGridU, orientedTopCrossSection } from '@candle/shared/geometry';
+import { getNet, sideGridU, orientedTopCrossSection } from '@candle/shared/geometry';
 import type { Point } from '@candle/shared/geometry';
 import { useDesignStore } from '../../document/store';
 import { palette, fontStack } from '../../ui';
-import {
-  ElementView,
-  PipingRun,
-  elementLocalSize,
-  MIN_PIPING_LENGTH,
-  useImageAssetStore,
-} from '../elements';
+import { ElementView, PipingRun, elementLocalSize, useImageAssetStore } from '../elements';
 import {
   handlePositions,
   pickTopElement,
@@ -51,7 +45,6 @@ export function NetEditor() {
   const elements = useDesignStore((s) => s.design.elements);
   const selectedId = useDesignStore((s) => s.selectedId);
   const select = useDesignStore((s) => s.select);
-  const addElement = useDesignStore((s) => s.addElement);
   const moveElement = useDesignStore((s) => s.moveElement);
   const scaleElement = useDesignStore((s) => s.scaleElement);
   const rotateElement = useDesignStore((s) => s.rotateElement);
@@ -62,15 +55,13 @@ export function NetEditor() {
   const setDrawingTool = useDesignStore((s) => s.setDrawingTool);
   const brush = useDesignStore((s) => s.brush);
   const addDrawing = useDesignStore((s) => s.addDrawing);
+  const addPiping = useDesignStore((s) => s.addPiping);
   // 이미지 자산이 비동기로 해석되면(version) 요소 마크업을 다시 그린다(PRD-S4).
   const imageVersion = useImageAssetStore((s) => s.version);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const activeRef = useRef<ActiveGesture | null>(null);
-  // 파이핑 드래그 진행 상태(시작점은 ref, 끝점은 미리보기 갱신용 state).
-  const drawStartRef = useRef<Point | null>(null);
-  const [drawEnd, setDrawEnd] = useState<Point | null>(null);
-  // 손그림(PRD-S1) 진행 상태: 펜 획 점열은 ref, 라이브 미리보기는 state로 재렌더.
+  // 손그림 펜·파이핑 모두 곡선 경로를 점열로 모은다(라이브 미리보기는 state로 재렌더).
   const strokeRef = useRef<Point[]>([]);
   const [strokePreview, setStrokePreview] = useState<Point[] | null>(null);
   // 지우개 드래그 중 여부(드래그하며 닿는 획을 연속 삭제).
@@ -134,7 +125,7 @@ export function NetEditor() {
     return { x: p.x, y: p.y };
   };
 
-  // 선택 요소의 핸들에 닿았는지 판별.
+  // 선택 요소의 핸들에 닿았는지 판별(코너 스케일 + 회전).
   const pickHandle = (point: Point): 'rotate' | Corner | null => {
     if (!selected) return null;
     const size = elementLocalSize(selected);
@@ -178,10 +169,10 @@ export function NetEditor() {
       return;
     }
 
-    // 0) 파이핑 그리기 모드: 드래그로 런을 그린다(선택/이동 대신).
+    // 0) 파이핑 그리기 모드: 펜처럼 곡선 경로를 점열로 모은다(선택/이동 대신).
     if (pendingPiping) {
-      drawStartRef.current = point;
-      setDrawEnd(point);
+      strokeRef.current = [point];
+      setStrokePreview([point]);
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
     }
@@ -225,8 +216,8 @@ export function NetEditor() {
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    // 펜 드래그 중: 점을 솎아 모으고 미리보기 갱신.
-    if (drawingTool === 'pen' && strokeRef.current.length > 0) {
+    // 펜·파이핑 드래그 중: 점을 솎아 경로에 모으고 미리보기 갱신.
+    if ((drawingTool === 'pen' || pendingPiping) && strokeRef.current.length > 0) {
       const point = toNet(e.clientX, e.clientY);
       if (point) {
         const next = appendStrokePoint(strokeRef.current, point);
@@ -241,12 +232,6 @@ export function NetEditor() {
     if (erasingRef.current) {
       const point = toNet(e.clientX, e.clientY);
       if (point) eraseAt(point);
-      return;
-    }
-    // 파이핑 드래그 중: 끝점만 갱신(미리보기 재렌더).
-    if (drawStartRef.current) {
-      const point = toNet(e.clientX, e.clientY);
-      if (point) setDrawEnd(point);
       return;
     }
     const active = activeRef.current;
@@ -282,24 +267,18 @@ export function NetEditor() {
       releaseCapture(e);
       return;
     }
-    // 파이핑 드래그 종료 → 런 길이만큼의 파이핑 요소 생성.
-    const start = drawStartRef.current;
-    if (start && pendingPiping) {
-      const end = toNet(e.clientX, e.clientY) ?? drawEnd ?? start;
-      const run = runFromPoints(start, end);
-      const id = addElement({
-        type: 'piping',
-        variant: pendingPiping.variant,
-        color: pendingPiping.color,
-        length: Math.max(MIN_PIPING_LENGTH, run.length),
-        transform: { x: run.center.x, y: run.center.y, scale: 1, rotation: run.rotation },
-      });
+    // 파이핑 드래그 종료 → 그린 곡선 경로로 파이핑 요소 생성.
+    if (pendingPiping && strokeRef.current.length > 0) {
+      const id = addPiping(
+        strokeRef.current,
+        pendingPiping.variant,
+        pendingPiping.color,
+        pendingPiping.width,
+      );
       select(id);
-      drawStartRef.current = null;
-      setDrawEnd(null);
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
+      strokeRef.current = [];
+      setStrokePreview(null);
+      releaseCapture(e);
       return;
     }
     if (activeRef.current) {
@@ -311,8 +290,6 @@ export function NetEditor() {
   };
 
   const onPointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
-    drawStartRef.current = null;
-    setDrawEnd(null);
     activeRef.current = null;
     strokeRef.current = [];
     setStrokePreview(null);
@@ -328,12 +305,6 @@ export function NetEditor() {
     fontWeight: 600,
     fill: '#c4b3b3',
   } as const;
-
-  // 파이핑 드래그 미리보기(진행 중일 때만).
-  const previewRun =
-    pendingPiping && drawStartRef.current && drawEnd
-      ? runFromPoints(drawStartRef.current, drawEnd)
-      : null;
 
   return (
     <svg
@@ -427,23 +398,20 @@ export function NetEditor() {
         />
       ))}
 
-      {/* 파이핑 드래그 미리보기 */}
-      {previewRun && pendingPiping && (
-        <g
-          transform={`translate(${previewRun.center.x} ${previewRun.center.y}) rotate(${(previewRun.rotation * 180) / Math.PI})`}
-          opacity={0.75}
-          pointerEvents="none"
-        >
+      {/* 파이핑 곡선 라이브 미리보기(그리는 중) — 경로를 따라 모티프 */}
+      {strokePreview && strokePreview.length > 0 && pendingPiping && (
+        <g opacity={0.75} pointerEvents="none">
           <PipingRun
             variant={pendingPiping.variant}
             color={pendingPiping.color}
-            length={Math.max(MIN_PIPING_LENGTH, previewRun.length)}
+            points={strokePreview}
+            width={pendingPiping.width}
           />
         </g>
       )}
 
       {/* 손그림 펜 라이브 미리보기(그리는 중) */}
-      {strokePreview && strokePreview.length > 0 && (
+      {strokePreview && strokePreview.length > 0 && drawingTool === 'pen' && (
         <polyline
           points={strokePreview.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ')}
           fill="none"

@@ -425,6 +425,59 @@ export function runFromPoints(
   };
 }
 
+// ── 경로(곡선 파이핑·손그림) ────────────────────────────────────────
+
+/** 점열의 경계 상자 중심(없으면 원점). 로컬 좌표화·핸들 배치에 쓴다. */
+export function centerOfPoints(points: Point[]): Point {
+  if (points.length === 0) return { x: 0, y: 0 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+}
+
+/** 폴리라인을 따라 spacing 간격으로 샘플 위치·접선각을 구한다(파이핑 모티프 배치).
+ *  간격이 고정이라 경로가 길어지면 개수만 늘고 모티프 크기는 일정하다. maxSamples로 상한. */
+export function resamplePath(
+  points: Point[],
+  spacing: number,
+  maxSamples = 5000,
+): { x: number; y: number; angle: number }[] {
+  if (points.length === 0) return [];
+  if (points.length === 1 || !(spacing > 0)) {
+    return [{ x: points[0]!.x, y: points[0]!.y, angle: 0 }];
+  }
+  const out: { x: number; y: number; angle: number }[] = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) total += Math.hypot(points[i]!.x - points[i - 1]!.x, points[i]!.y - points[i - 1]!.y);
+
+  let seg = 0;
+  let acc = 0; // points[seg] 까지의 누적 거리
+  let segLen = Math.hypot(points[1]!.x - points[0]!.x, points[1]!.y - points[0]!.y);
+  for (let k = 0; k <= maxSamples; k++) {
+    const d = k * spacing;
+    if (d > total + 1e-9) break;
+    while (d > acc + segLen && seg < points.length - 2) {
+      acc += segLen;
+      seg++;
+      segLen = Math.hypot(points[seg + 1]!.x - points[seg]!.x, points[seg + 1]!.y - points[seg]!.y);
+    }
+    const a = points[seg]!;
+    const b = points[seg + 1]!;
+    const t = segLen > 0 ? (d - acc) / segLen : 0;
+    out.push({
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t,
+      angle: Math.atan2(b.y - a.y, b.x - a.x),
+    });
+  }
+  return out;
+}
+
 // ── 규격 변경 재계산 ────────────────────────────────────────────────
 
 /** 규격 변경 시 전개도·파생 치수를 재계산 (M4/S5 대비). */

@@ -2,3 +2,4 @@
 export { LibraryPanel } from './LibraryPanel';
 export { PropertiesPanel } from './PropertiesPanel';
 export { DrawingPanel } from './DrawingPanel';
+export { PipingPanel } from './PipingPanel';

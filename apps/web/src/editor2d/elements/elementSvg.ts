@@ -4,13 +4,13 @@
 // shared/geometry·catalog가 단일 출처 — 여기선 그 결과를 SVG 문자열로 직렬화만 한다.
 // 규칙: 순수 함수. DOM·렌더 기술 의존 없음.
 import type { Element } from '@candle/shared';
+import { resamplePath, type Point } from '@candle/shared/geometry';
 import {
   illustrationAsset,
   illustrationDataUri,
   elementLocalSize,
   ILLUSTRATION_SIZE,
-  PIPING_HEIGHT,
-  PIPING_UNIT,
+  DEFAULT_PIPING_WIDTH,
   LETTER_FONT_CM,
 } from './catalog';
 import { getImageAsset } from './imageAssets';
@@ -31,51 +31,77 @@ function n(value: number): string {
 }
 
 /**
- * 파이핑 런 마크업 — 중심(0,0) 기준 length만큼 가로로 펼친 모티프 반복.
- * ElementView의 PipingRun(JSX)과 동일한 도형을 문자열로 만든다.
+ * 물방울 모티프 path — 박스(가로·세로 = s) 중심 기준, 끝이 위(-y)로 뾰족한 드롭.
+ * 아래쪽 반원(반지름 r)에 뾰족한 꼭지를 얹은 형태.
  */
-export function pipingMarkup(variant: string, color: string, length: number): string {
-  const half = length / 2;
-  const units = Math.max(1, Math.round(length / PIPING_UNIT));
+function teardropPath(s: number): string {
+  const half = s / 2;
+  const r = s * 0.42;
+  const cy = half - r; // 불룩한 아래쪽 원의 중심 y(바닥이 +half에 닿도록)
+  const tipY = -half; // 꼭지(위)
+  const cx = r * 0.85; // 꼭지 부근 제어점 가로 도달
+  return (
+    `M 0 ${n(tipY)}` +
+    ` C ${n(-cx)} ${n(tipY + s * 0.34)} ${n(-r)} ${n(cy - r * 0.55)} ${n(-r)} ${n(cy)}` +
+    ` A ${n(r)} ${n(r)} 0 0 0 ${n(r)} ${n(cy)}` +
+    ` C ${n(r)} ${n(cy - r * 0.55)} ${n(cx)} ${n(tipY + s * 0.34)} 0 ${n(tipY)} Z`
+  );
+}
+
+/**
+ * 파이핑 마크업 — 곡선 경로(points)를 따라 모티프를 일정 간격으로 찍는다.
+ * 모티프 크기·간격 = width로 **고정**이라 경로가 길어지면 개수만 늘고 크기는 변하지 않는다.
+ * 원형·물방울은 간격 = 지름이라 빈틈 없이(서로 접하게) 놓인다. ElementView의 PipingRun과
+ * 동일한 도형을 문자열로 만든다. points는 로컬 좌표(transform 적용 전).
+ */
+export function pipingMarkup(
+  variant: string,
+  color: string,
+  points: Point[],
+  width: number = DEFAULT_PIPING_WIDTH,
+): string {
+  if (!points || points.length === 0) return '';
   const fill = escapeAttr(color);
 
   if (variant === 'scallop') {
-    const w = length / units;
-    const r = w / 2;
-    let d = `M ${n(-half)} 0`;
-    for (let i = 0; i < units; i++) {
-      const x = -half + (i + 1) * w;
-      d += ` A ${n(r)} ${n(r)} 0 0 0 ${n(x)} 0`;
+    // 물결(사인파) 선 — 경로를 따라가되 접선의 수직 방향으로 사인 진동을 준다.
+    // 파장·진폭은 굵기(width)에 비례해 굵기 슬라이더가 물결 크기를 정한다.
+    if (points.length === 1) {
+      const p = points[0]!;
+      return `<circle cx="${n(p.x)}" cy="${n(p.y)}" r="${n(width / 2)}" fill="${fill}"/>`;
     }
-    return `<path d="${d}" fill="none" stroke="${fill}" stroke-width="${n(PIPING_HEIGHT * 0.22)}" stroke-linecap="round"/>`;
+    const lambda = Math.max(0.1, width) * 3; // 한 물결의 길이(cm) — 길수록 완만
+    const amp = Math.max(0.05, width) * 0.35; // 진폭(중심선 기준) — 작을수록 완만
+    const step = lambda / 16; // 매끄러운 곡선을 위한 샘플 간격
+    const fine = resamplePath(points, step);
+    const wave = fine.map((s, i) => {
+      const d = i * step;
+      const off = amp * Math.sin((2 * Math.PI * d) / lambda);
+      // 접선의 좌측 법선(−sin, cos)으로 오프셋.
+      return { x: s.x - Math.sin(s.angle) * off, y: s.y + Math.cos(s.angle) * off };
+    });
+    const path = wave.map((p, i) => `${i === 0 ? 'M' : 'L'} ${n(p.x)} ${n(p.y)}`).join(' ');
+    const strokeW = Math.max(0.06, width * 0.22);
+    return `<path d="${path}" fill="none" stroke="${fill}" stroke-width="${n(strokeW)}" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
 
-  if (variant === 'star-tip') {
-    const outer = PIPING_HEIGHT / 2;
-    const inner = outer * 0.45;
-    const star: string[] = [];
-    for (let i = 0; i < 10; i++) {
-      const rad = (Math.PI * i) / 5 - Math.PI / 2;
-      const rr = i % 2 === 0 ? outer : inner;
-      star.push(`${n(Math.cos(rad) * rr)},${n(Math.sin(rad) * rr)}`);
-    }
-    const count = units + 1;
-    const step = count > 1 ? length / (count - 1) : 0;
-    const polys = Array.from(
-      { length: count },
-      (_, i) => `<polygon points="${star.join(' ')}" transform="translate(${n(-half + i * step)} 0)"/>`,
-    ).join('');
-    return `<g fill="${fill}">${polys}</g>`;
+  const samples = resamplePath(points, width);
+
+  if (variant === 'teardrop') {
+    // 물방울: 크기 = width 고정, 접선 방향으로 꼭지를 정렬해 경로를 따라 흐른다.
+    const drops = samples
+      .map(
+        (s) =>
+          `<path d="${teardropPath(width)}" transform="translate(${n(s.x)} ${n(s.y)}) rotate(${n((s.angle * 180) / Math.PI + 90)})"/>`,
+      )
+      .join('');
+    return `<g fill="${fill}">${drops}</g>`;
   }
 
-  // dots
-  const count = units + 1;
-  const step = count > 1 ? length / (count - 1) : 0;
-  const r = PIPING_HEIGHT * 0.3;
-  const dots = Array.from(
-    { length: count },
-    (_, i) => `<circle cx="${n(-half + i * step)}" cy="0" r="${n(r)}"/>`,
-  ).join('');
+  // dots(원형) — 지름 = width 고정, 간격 = width라 서로 접한다(빈틈 없음).
+  const dots = samples
+    .map((s) => `<circle cx="${n(s.x)}" cy="${n(s.y)}" r="${n(width / 2)}"/>`)
+    .join('');
   return `<g fill="${fill}">${dots}</g>`;
 }
 
@@ -147,7 +173,7 @@ export function elementInnerMarkup(element: Element): string {
     case 'lettering':
       return letteringMarkup(element.text, element.font, element.color);
     case 'piping':
-      return pipingMarkup(element.variant, element.color, element.length);
+      return pipingMarkup(element.variant, element.color, element.points, element.width);
     case 'illustration':
       return illustrationMarkup(element);
     case 'image':

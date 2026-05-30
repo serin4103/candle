@@ -187,12 +187,12 @@ describe('손그림 (PRD-S1)', () => {
 
   it('손그림 모드와 파이핑 모드는 상호배타다', () => {
     const s = useDesignStore.getState();
-    s.setPendingPiping({ variant: 'dots', color: '#fff' });
+    s.setPendingPiping({ variant: 'dots', color: '#fff', width: 7 });
     s.setDrawingTool('pen');
     expect(useDesignStore.getState().pendingPiping).toBeNull(); // 펜 켜면 파이핑 해제
     expect(useDesignStore.getState().drawingTool).toBe('pen');
 
-    s.setPendingPiping({ variant: 'dots', color: '#fff' });
+    s.setPendingPiping({ variant: 'dots', color: '#fff', width: 7 });
     expect(useDesignStore.getState().drawingTool).toBeNull(); // 파이핑 켜면 펜 해제
   });
 
@@ -207,5 +207,61 @@ describe('손그림 (PRD-S1)', () => {
     expect(useDesignStore.getState().brush.width).toBe(5);
     useDesignStore.getState().setBrush({ color: '#abcdef' });
     expect(useDesignStore.getState().brush).toMatchObject({ width: 5, color: '#abcdef' });
+  });
+});
+
+describe('파이핑 보강 (PRD-M3)', () => {
+  beforeEach(() => {
+    useDesignStore.setState({ pendingPiping: null, drawingTool: null });
+  });
+
+  it('addPiping은 절대 좌표 경로를 경계상자 중심 기준 로컬 좌표로 저장한다', () => {
+    // 중심이 (10,20)인 수평 경로.
+    const id = useDesignStore.getState().addPiping(
+      [
+        { x: 0, y: 20 },
+        { x: 20, y: 20 },
+      ],
+      'teardrop',
+      '#ef9aae',
+      1,
+    );
+    const el = useDesignStore.getState().design.elements.find((e) => e.id === id);
+    expect(el?.type).toBe('piping');
+    if (el?.type === 'piping') {
+      expect(el.variant).toBe('teardrop');
+      expect(el.width).toBe(1);
+      // transform 원점 = 경계상자 중심 (10,20).
+      expect(el.transform.x).toBeCloseTo(10, 6);
+      expect(el.transform.y).toBeCloseTo(20, 6);
+      // 점은 중심 기준 로컬 좌표 (±10, 0).
+      expect(el.points).toEqual([
+        { x: -10, y: 0 },
+        { x: 10, y: 0 },
+      ]);
+    }
+  });
+
+  it('파이핑 색상·굵기를 updatePiping으로 바꾼다(경로·모양 보존)', () => {
+    const id = useDesignStore.getState().addPiping([{ x: 0, y: 0 }, { x: 10, y: 0 }], 'dots', '#ef9aae', 1);
+    useDesignStore.getState().updatePiping(id, { color: '#000000', width: 1.5 });
+    const el = useDesignStore.getState().design.elements.find((e) => e.id === id);
+    if (el?.type === 'piping') {
+      expect(el.color).toBe('#000000');
+      expect(el.width).toBe(1.5);
+      expect(el.variant).toBe('dots');
+      expect(el.points.length).toBe(2);
+    }
+  });
+
+  it('setPipingBrush는 일부 필드만 갱신하고, 그리기 모드가 켜져 있으면 거기에도 반영한다', () => {
+    const s = useDesignStore.getState();
+    s.setPipingBrush({ width: 1.2 });
+    expect(useDesignStore.getState().pipingBrush.width).toBe(1.2);
+    // 그리기 모드 활성 중 변경 → pendingPiping에도 반영.
+    s.setPendingPiping({ variant: 'dots', color: '#ef9aae', width: 1.2 });
+    useDesignStore.getState().setPipingBrush({ color: '#5b7fa6' });
+    expect(useDesignStore.getState().pendingPiping).toMatchObject({ color: '#5b7fa6', width: 1.2 });
+    expect(useDesignStore.getState().pipingBrush.color).toBe('#5b7fa6');
   });
 });
