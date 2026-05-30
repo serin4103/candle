@@ -10,7 +10,7 @@ import { topOutlinePath } from '../../editor2d/canvas/netPath';
 import { elementGroupMarkup } from '../../editor2d/elements/elementSvg';
 
 /** 텍스처 해상도(전개도 cm당 픽셀). */
-export const NET_PX_PER_CM = 12;
+export const NET_PX_PER_CM = 24;
 /** 텍스처 한 변 최대 픽셀(과도한 캔버스 방지). */
 export const NET_MAX_PX = 2048;
 
