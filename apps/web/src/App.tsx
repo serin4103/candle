@@ -1,18 +1,97 @@
-// App — 앱 셸. 상단 브랜드바(전개도↔3D 전환 + 로그인·저장·마이페이지) + 좌측(공유·
-// 케이크·요소) + 중앙 뷰 + 우측 속성 패널. 열람 모드(PRD-M5)에선 편집 패널을 숨긴다.
-// 상단바 버튼 "배치"는 셸의 책임이고, 로그인 팝업·세션은 auth/가 소유한다(PRD-S6).
-import { useState } from 'react';
-import { palette, fontStack, radius, shadow, Button } from './ui';
-import { CakeControls } from './cake';
+// App — 앱 셸. 상단 브랜드바(공유·저장·마이페이지·로그인) + 좌측(케이크·요소) +
+// 중앙 뷰(케이크 위 전개도↔3D 세그먼트 스위치) + 우측 속성 패널. 열람 모드(PRD-M5)
+// 에선 편집 패널을 숨긴다. 상단바 버튼 "배치"는 셸의 책임이고, 공유 모달은 share/,
+// 로그인 팝업·세션은 auth/가 소유한다(PRD-S6). 마이페이지는 로그인 시에만 노출.
+import { useState, type ReactNode } from 'react';
+import { palette, fontStack, radius, shadow, Button, Panel } from './ui';
+import { CakeControls, ColorControls } from './cake';
 import { NetEditor } from './editor2d/canvas';
 import { LibraryPanel, PropertiesPanel, DrawingPanel, PipingPanel } from './editor2d/panels';
 import { useResolveImageAssets } from './editor2d/elements';
 import { CakeViewer3D } from './viewer3d';
-import { SharePanel, useShareSession, myPageUrl, navigate } from './share';
+import { ShareModal, useShareSession, myPageUrl, navigate } from './share';
 import { useAuthSession, LoginDialog, UserMenu } from './auth';
-import { MyPage } from './mypage';
+import { MyPage, prefetchMyDesigns } from './mypage';
 
 type ViewMode = 'net' | '3d';
+
+/** 전개도 아이콘(격자). */
+function NetIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="1.5" y="1.5" width="13" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M1.5 6.5h13M6 6.5v8" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+/** 3D 아이콘(큐브). */
+function CubeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 1.6 14 5v6L8 14.4 2 11V5L8 1.6Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path d="M2 5l6 3.4L14 5M8 8.4v6" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** 전개도 ↔ 3D 세그먼트 스위치. 활성 항목만 흰 알약으로 떠오른다. */
+function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
+  const segments: { id: ViewMode; label: string; icon: ReactNode }[] = [
+    { id: 'net', label: '전개도', icon: <NetIcon /> },
+    { id: '3d', label: '3D', icon: <CubeIcon /> },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="뷰 전환"
+      style={{
+        display: 'inline-flex',
+        gap: 4,
+        padding: 4,
+        borderRadius: radius.pill,
+        background: palette.surfaceMuted,
+        border: `1px solid ${palette.border}`,
+      }}
+    >
+      {segments.map((seg) => {
+        const active = view === seg.id;
+        return (
+          <button
+            key={seg.id}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(seg.id)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: fontStack,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: 'none',
+              borderRadius: radius.pill,
+              padding: '7px 16px',
+              transition: 'all 0.15s ease',
+              background: active ? palette.surface : 'transparent',
+              color: active ? palette.text : palette.textMuted,
+              boxShadow: active ? shadow.soft : 'none',
+            }}
+          >
+            {seg.icon}
+            {seg.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function App() {
   const auth = useAuthSession();
@@ -27,6 +106,7 @@ export function App() {
   // 로그인 팝업·사용자 메뉴 열림 상태(셸이 트리거·배치를 소유).
   const [loginOpen, setLoginOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // 마이페이지(PRD-S6)는 별도 전체 화면.
   if (session.mode === 'mypage') {
@@ -50,11 +130,12 @@ export function App() {
     <div
       style={{
         fontFamily: fontStack,
-        minHeight: '100vh',
+        height: '100vh',
         background: palette.bg,
         color: palette.text,
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
       {/* 상단 브랜드바 */}
@@ -86,26 +167,29 @@ export function App() {
           내 케이크 디자인
         </span>
 
-        {/* 전개도 ↔ 3D 전환 */}
+        {/* 공유·저장·마이페이지·로그인 (셸이 배치, 동작은 share·auth에 위임) */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <Button
-            active={view === 'net'}
-            aria-pressed={view === 'net'}
-            onClick={() => setView('net')}
-          >
-            전개도
-          </Button>
-          <Button active={view === '3d'} aria-pressed={view === '3d'} onClick={() => setView('3d')}>
-            3D
-          </Button>
-
-          {/* 저장·마이페이지·로그인 (셸이 배치, 동작은 share·auth에 위임) */}
+          {/* 공유 버튼은 저장 후(열람 링크 발급) 노출. 열람 모드는 복제 진입을 위해 유지. */}
+          {(readOnly || session.shareLink) && (
+            <Button onClick={() => setShareOpen(true)}>공유</Button>
+          )}
           {!readOnly && (
             <Button variant="primary" disabled={busy} onClick={onSave}>
               {saveLabel}
             </Button>
           )}
-          <Button onClick={() => navigate(myPageUrl())}>마이페이지</Button>
+          {/* 마이페이지는 로그인 사용자에게만 노출(PRD-S6). 리로드 전에 hover/누름으로
+              목록을 미리 받아 캐시에 채워, 진입 시 빈 화면 없이 즉시 뜨게 한다. */}
+          {auth.user && (
+            <Button
+              onMouseEnter={() => prefetchMyDesigns(auth.user!.id)}
+              onFocus={() => prefetchMyDesigns(auth.user!.id)}
+              onPointerDown={() => prefetchMyDesigns(auth.user!.id)}
+              onClick={() => navigate(myPageUrl())}
+            >
+              마이페이지
+            </Button>
+          )}
           {auth.user ? (
             <Button onClick={() => setMenuOpen(true)} aria-label="사용자 메뉴">
               {auth.user.email ?? '내 계정'}
@@ -128,7 +212,6 @@ export function App() {
             overflowY: 'auto',
           }}
         >
-          <SharePanel session={session} />
           {/* 편집 패널(케이크 모양·요소·손그림 추가)은 전개도(2D) 뷰 전용 — 3D 뷰는 읽기 전용이라 숨긴다(PRD-M4). */}
           {!readOnly && view === 'net' && (
             <>
@@ -138,6 +221,12 @@ export function App() {
               <DrawingPanel />
             </>
           )}
+          {/* 3D 뷰에서는 크림색 색상 선택만 남긴다(색은 3D에 즉시 반영, PRD-M2). */}
+          {!readOnly && view === '3d' && (
+            <Panel title="색상">
+              <ColorControls />
+            </Panel>
+          )}
         </div>
         <section
           style={{
@@ -145,12 +234,27 @@ export function App() {
             background: palette.canvas,
             borderRadius: radius.lg,
             boxShadow: shadow.card,
-            display: 'grid',
-            placeItems: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 12,
             padding: 16,
+            minHeight: 0,
           }}
         >
-          {view === 'net' ? <NetEditor /> : <CakeViewer3D />}
+          {/* 전개도 ↔ 3D 전환 — 케이크 위쪽에 세그먼트 스위치로 둔다(상단바 아님). */}
+          <ViewToggle view={view} onChange={setView} />
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              width: '100%',
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            {view === 'net' ? <NetEditor /> : <CakeViewer3D />}
+          </div>
         </section>
         {/* 선택 요소 속성 패널도 2D 편집 전용 — 3D 읽기 전용 뷰에서는 숨긴다(PRD-M4). */}
         {!readOnly && view === 'net' && (
@@ -159,6 +263,9 @@ export function App() {
           </div>
         )}
       </main>
+
+      {/* 공유 모달 (share/ 소유, 상단바 "공유" 버튼이 열고 닫음) */}
+      {shareOpen && <ShareModal session={session} onClose={() => setShareOpen(false)} />}
 
       {/* 로그인/로그아웃 팝업 (auth/ 소유, 셸이 열고 닫음) */}
       {loginOpen && (

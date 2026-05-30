@@ -5,14 +5,8 @@
       "name": "web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@candle/web", "dev"],
-      "port": 5173
-    },
-    {
-      "name": "web-wt",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@candle/web", "dev", "--port", "5290", "--strictPort"],
-      "port": 5290,
-      "autoPort": false
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }

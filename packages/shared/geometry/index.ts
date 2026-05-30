@@ -212,8 +212,10 @@ export function buildCrossSection(shape: Shape, spec: Spec): CrossSection {
 
 /**
  * shape·규격으로 전개도를 만든다.
- * 옆면은 둘레×전체높이 사각형, 윗면은 단면 바운딩 박스. 윗면을 위쪽 가운데,
- * 옆면을 그 아래 가운데에 배치한다(가로는 둘 다 contentW 기준 중앙 정렬).
+ * 옆면은 둘레×전체높이 사각형, 윗면은 단면 바운딩 박스. 옆면(펼친 띠) 위에 윗면(뚜껑)을
+ * 실제 전개도처럼 "붙는 면" 기준으로 배치한다:
+ * - 사각형: 옆면이 네 면으로 나뉘므로 윗면을 한 면(둘레 1/4 폭) 바로 위에 올려 박스 전개도처럼.
+ * - 원형·하트: 이음매(옆면 좌우 끝) 반대편 가운데에 접하므로 가로 가운데 정렬.
  */
 export function getNet(shape: Shape, spec: Spec): Net {
   const crossSection = buildCrossSection(shape, spec);
@@ -226,16 +228,99 @@ export function getNet(shape: Shape, spec: Spec): Net {
   const topH = Math.max(...zs) - Math.min(...zs);
 
   const contentW = Math.max(sideWidth, topW);
-  const top: Rect = { x: (contentW - topW) / 2, y: 0, width: topW, height: topH };
-  const side: Rect = {
-    x: (contentW - sideWidth) / 2,
-    y: topH + NET_GAP_CM,
-    width: sideWidth,
-    height,
-  };
+  const sideX = (contentW - sideWidth) / 2;
+  // 사각형 뚜껑은 옆면 두 번째 면(둘레 1/4 지점부터 한 면 폭) 위에 정렬, 그 외엔 가운데.
+  const topX = shape === 'square' ? sideX + sideWidth / 4 : (contentW - topW) / 2;
+  const top: Rect = { x: topX, y: 0, width: topW, height: topH };
+  const side: Rect = { x: sideX, y: topH + NET_GAP_CM, width: sideWidth, height };
   const bounds = { width: contentW, height: side.y + height };
 
   return { shape, side, top, bounds, crossSection };
+}
+
+/**
+ * 단면 외곽선에서 진행 방향이 임계각 이상 꺾이는 꼭지점(=3D 모서리·이음매) 인덱스.
+ * 사각형은 네 모서리, 하트는 아래 꼭지점·갈라짐이 잡히고, 원형처럼 매끈하면 비어 있다.
+ */
+function cornerIndices(points: Point3[], threshold = Math.PI / 6): number[] {
+  const n = points.length;
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = points[(i - 1 + n) % n]!;
+    const cur = points[i]!;
+    const next = points[(i + 1) % n]!;
+    const ax = cur.x - prev.x;
+    const az = cur.z - prev.z;
+    const bx = next.x - cur.x;
+    const bz = next.z - cur.z;
+    const la = Math.hypot(ax, az);
+    const lb = Math.hypot(bx, bz);
+    if (la < 1e-9 || lb < 1e-9) continue;
+    const cos = clamp((ax * bx + az * bz) / (la * lb), -1, 1);
+    if (Math.acos(cos) > threshold) out.push(i);
+  }
+  return out;
+}
+
+/**
+ * 옆면(펼친 띠)에 그릴 눈금선의 u좌표(0~1, 좌→우) 목록. 옆면이 3D에서 어느 면·모서리에
+ * 대응하는지 보여주는 참조선이다. 단면의 꺾임 꼭지점(=3D 모서리)을 호장 위치로 환산해
+ * 돌려준다(사각형=네 모서리, 하트=아래 꼭지점). 원형처럼 꺾임이 없으면 빈 배열 — 그릴
+ * 모서리가 없다. 옆면 좌우 경계(u≈0·u≈1=이음매)와 겹치는 선은 이미 옆면 테두리이므로 제외.
+ */
+export function sideGridU(shape: Shape, spec: Spec): number[] {
+  const cs = buildCrossSection(shape, spec);
+  const us = cornerIndices(cs.points)
+    .map((i) => cs.cumulative[i]! / cs.perimeter)
+    .filter((u) => u > 1e-3 && u < 1 - 1e-3);
+  return [...new Set(us.map((u) => Math.round(u * 1e4) / 1e4))].sort((a, b) => a - b);
+}
+
+/** 단면 외곽선에서 호장 절반(둘레의 50%) 위치 경계점 — 옆면(펼친 띠) 가로 가운데에 대응. */
+function halfPerimeterPoint(cs: CrossSection): Point3 {
+  const target = cs.perimeter / 2;
+  const { points, cumulative, perimeter } = cs;
+  for (let i = 0; i < points.length; i++) {
+    const segEnd = i + 1 < points.length ? cumulative[i + 1]! : perimeter;
+    if (target <= segEnd || i === points.length - 1) {
+      const from = points[i]!;
+      const to = points[(i + 1) % points.length]!;
+      const segStart = cumulative[i]!;
+      const f = segEnd > segStart ? (target - segStart) / (segEnd - segStart) : 0;
+      return { x: from.x + (to.x - from.x) * f, z: from.z + (to.z - from.z) * f };
+    }
+  }
+  return points[0]!;
+}
+
+/**
+ * 윗면(뚜껑)을 전개도에 놓을 때 단면을 회전시키는 각(라디안). 옆면 가운데(둘레 절반)에
+ * 닿는 단면점이 뚜껑의 **아래쪽 가운데**(옆면과 접하는 변)에 오도록 맞춘다 —
+ * 즉 전개도를 접으면 윗면 가운데와 옆면 가운데가 3D에서 맞닿는다. 사각형은 한 면 위에
+ * 축 정렬로 두므로(getNet 참조) 회전하지 않는다(0). 하트는 아래 꼭지점이 이미 둘레
+ * 절반이라 ≈0이 된다. 원형은 -90°가 되어 옆면 가운데가 뚜껑 아래로 온다.
+ */
+export function topOrientation(net: Net): number {
+  if (net.shape === 'square') return 0;
+  const pts = net.crossSection.points;
+  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+  const cz = pts.reduce((s, p) => s + p.z, 0) / pts.length;
+  const mid = halfPerimeterPoint(net.crossSection);
+  // 중심→가운데점 방향을 +z(전개도에서 아래=옆면 쪽)로 돌리는 각. (-π,π]로 정규화.
+  const a = Math.PI / 2 - Math.atan2(mid.z - cz, mid.x - cx);
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+/**
+ * 윗면(뚜껑) 외곽선을 topOrientation만큼 회전시킨 단면점(xz, 원점 부근). 인덱스는
+ * crossSection.points와 1:1 대응 — 2D 외곽선(netPath)·3D 뚜껑 UV(meshes)가 같은 점열을
+ * 공유해 전개도↔3D가 일관된다. 호출부가 바운딩박스 좌상단을 net.top에 맞춰 평행이동한다.
+ */
+export function orientedTopCrossSection(net: Net): Point3[] {
+  const a = topOrientation(net);
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return net.crossSection.points.map((p) => ({ x: p.x * c - p.z * s, z: p.x * s + p.z * c }));
 }
 
 /**

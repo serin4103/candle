@@ -55,7 +55,7 @@ export interface PipingBrush {
 const DEFAULT_VIEWPORT: Viewport = { panX: 0, panY: 0, zoom: 1 };
 
 /** 기본 브러시 — 크림 위에서 잘 보이는 진한 갈색, 적당한 굵기(cm). */
-const DEFAULT_BRUSH: Brush = { color: '#5a3b3b', width: 2 };
+const DEFAULT_BRUSH: Brush = { color: '#5a3b3b', width: 0.5 };
 
 /** 기본 파이핑 설정 — 파스텔 핑크, 기본 굵기(cm). (catalog DEFAULT_PIPING_WIDTH와 일치) */
 const DEFAULT_PIPING_BRUSH: PipingBrush = { color: '#ef9aae', width: 1 };

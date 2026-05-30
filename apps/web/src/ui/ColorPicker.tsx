@@ -43,6 +43,7 @@ export function ColorPicker({ value, swatches, onChange, label }: ColorPickerPro
       <label
         aria-label={`${label ?? '색'} 직접 선택`}
         style={{
+          position: 'relative',
           width: 28,
           height: 28,
           borderRadius: radius.pill,

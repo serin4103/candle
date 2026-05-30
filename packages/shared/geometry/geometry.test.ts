@@ -15,6 +15,9 @@ import {
   centerOfPoints,
   resamplePath,
   recomputeForSpec,
+  sideGridU,
+  topOrientation,
+  orientedTopCrossSection,
   SIZE_BASE_DIAMETER_CM,
   SIZE_STEP_CM,
 } from './index';
@@ -83,7 +86,7 @@ describe('buildCrossSection', () => {
 
 describe('getNet', () => {
   it.each(['circle', 'square', 'heart'] as const)(
-    '%s 전개도: 옆면 width=둘레, height=전체높이, 윗면은 옆면 위 가운데',
+    '%s 전개도: 옆면 width=둘레, height=전체높이, 윗면은 옆면 위에 배치',
     (shape) => {
       const net = getNet(shape, spec);
       const cs = buildCrossSection(shape, spec);
@@ -91,14 +94,84 @@ describe('getNet', () => {
       expect(net.side.height).toBeCloseTo(totalHeight(spec), 6);
       // 윗면은 옆면 위(여백 포함).
       expect(net.top.y + net.top.height).toBeLessThanOrEqual(net.side.y);
-      // 가로 중앙 정렬: 면 중심이 bounds 가로 중심과 같다.
-      expect(net.top.x + net.top.width / 2).toBeCloseTo(net.bounds.width / 2, 6);
+      // 옆면은 항상 가로 가운데.
       expect(net.side.x + net.side.width / 2).toBeCloseTo(net.bounds.width / 2, 6);
+      // 윗면 가로 위치: 사각형은 옆면 한 면(둘레 1/4 지점) 위, 그 외엔 가운데.
+      if (shape === 'square') {
+        expect(net.top.x).toBeCloseTo(net.side.x + net.side.width / 4, 6);
+      } else {
+        expect(net.top.x + net.top.width / 2).toBeCloseTo(net.bounds.width / 2, 6);
+      }
+      // 윗면은 항상 옆면 가로 범위 안.
+      expect(net.top.x).toBeGreaterThanOrEqual(net.side.x - 1e-6);
+      expect(net.top.x + net.top.width).toBeLessThanOrEqual(net.side.x + net.side.width + 1e-6);
       // 전체 bounds는 양수이고 모든 영역을 포함.
       expect(net.bounds.width).toBeGreaterThan(0);
       expect(net.bounds.height).toBeCloseTo(net.side.y + net.side.height, 6);
     },
   );
+});
+
+describe('sideGridU (옆면 눈금선 = 3D 면·모서리 참조)', () => {
+  it('사각형: 네 모서리 → 1/4·2/4·3/4 세 눈금', () => {
+    const us = sideGridU('square', spec);
+    expect(us).toHaveLength(3);
+    expect(us[0]).toBeCloseTo(0.25, 4);
+    expect(us[1]).toBeCloseTo(0.5, 4);
+    expect(us[2]).toBeCloseTo(0.75, 4);
+  });
+
+  it('하트: 아래 꼭지점(둘레 가운데)에 눈금이 잡힌다', () => {
+    const us = sideGridU('heart', spec);
+    expect(us.length).toBeGreaterThanOrEqual(1);
+    expect(us.some((u) => Math.abs(u - 0.5) < 0.03)).toBe(true);
+  });
+
+  it('원형: 꺾임(모서리)이 없어 눈금 없음', () => {
+    expect(sideGridU('circle', spec)).toEqual([]);
+  });
+
+  it('모든 눈금은 옆면 안쪽(0<u<1, 이음매 제외)이고 오름차순', () => {
+    for (const shape of ['circle', 'square', 'heart'] as const) {
+      const us = sideGridU(shape, spec);
+      expect(us.every((u) => u > 0 && u < 1)).toBe(true);
+      expect([...us].sort((a, b) => a - b)).toEqual(us);
+    }
+  });
+});
+
+describe('topOrientation / orientedTopCrossSection (윗면 가운데↔옆면 가운데 접합)', () => {
+  it('사각형은 회전하지 않는다(한 면 위 축 정렬)', () => {
+    expect(topOrientation(getNet('square', spec))).toBe(0);
+  });
+
+  it('하트는 아래 꼭지점이 이미 둘레 절반 → 회전 ≈ 0', () => {
+    expect(Math.abs(topOrientation(getNet('heart', spec)))).toBeLessThan(1e-6);
+  });
+
+  it('원형은 -90°(옆면 가운데 점이 뚜껑 아래로)', () => {
+    expect(topOrientation(getNet('circle', spec))).toBeCloseTo(-Math.PI / 2, 6);
+  });
+
+  it('orient 후: 옆면 가운데(둘레 절반)에 닿는 점이 뚜껑 외곽선의 아래쪽 가운데에 온다', () => {
+    for (const shape of ['circle', 'square', 'heart'] as const) {
+      const net = getNet(shape, spec);
+      const oriented = orientedTopCrossSection(net);
+      // 둘레 절반 지점의 인덱스(원형·하트는 점열 중앙, 사각형은 회전 없음으로 검증 제외).
+      if (shape === 'square') continue;
+      const cum = net.crossSection.cumulative;
+      const half = net.crossSection.perimeter / 2;
+      let mi = 0;
+      for (let i = 0; i < cum.length; i++) if (Math.abs(cum[i]! - half) < Math.abs(cum[mi]! - half)) mi = i;
+      const zs = oriented.map((p) => p.z);
+      const xs = oriented.map((p) => p.x);
+      const maxZ = Math.max(...zs);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      // 가운데 점은 z가 (거의) 최대(아래)이고 x가 (거의) 중앙.
+      expect(maxZ - oriented[mi]!.z).toBeLessThan(0.05 * diameterForSize(spec.size));
+      expect(Math.abs(oriented[mi]!.x - cx)).toBeLessThan(0.05 * diameterForSize(spec.size));
+    }
+  });
 });
 
 describe('uvForNetPoint', () => {

@@ -2,8 +2,6 @@
 // 라이브러리 패널이 제공하는 자산 목록과, 요소의 전개도 로컬 크기(스케일 1, cm)를
 // 정의한다. 렌더 기술·상태 의존 없음 — tools(히트테스트/핸들)와 View가 함께 쓴다.
 import type { Element } from '@candle/shared';
-import catFaceRaw from './assets/cat-face.svg?raw';
-import dogFaceRaw from './assets/dog-face.svg?raw';
 import { getImageAsset } from './imageAssets';
 
 /** 일러스트 자산 — assetId로 참조하는 SVG 원본(색상 교체를 위해 텍스트로 들고 있다). */
@@ -88,23 +86,56 @@ export interface LetteringFont {
   label: string;
 }
 
-/** 원본 정의(파일별 raw). aspect·palette는 SVG에서 자동 추출한다. */
-const ILLUSTRATION_SOURCES: { id: string; label: string; raw: string }[] = [
-  { id: 'cat-face', label: '고양이', raw: catFaceRaw },
-  { id: 'dog-face', label: '강아지', raw: dogFaceRaw },
-];
+/** id(파일명)별 한국어 라벨. 없는 파일은 파일명을 사람이 읽기 좋게 변환해 쓴다. */
+const ILLUSTRATION_LABELS: Record<string, string> = {
+  'cat-face': '고양이',
+  'dog-face': '강아지',
+  'bear-heart': '곰',
+  'bubble': '거품',
+  'clover': '클로버',
+  'fish': '물고기',
+  'flower': '꽃',
+  'heart': '하트',
+  'music-note': '음표',
+  'ribbon-bow': '리본',
+  'soap-bubble': '비눗방울',
+  'sparkle': '반짝이',
+  'star': '별',
+  'tomato': '토마토',
+  'tree': '나무',
+};
 
-/** 일러스트 라이브러리(PRD-M3 카테고리 1). SVG 자산을 추가하려면
- *  `assets/`에 파일을 넣고 `?raw`로 import 후 위 배열에 한 줄 추가한다. */
-export const illustrations: IllustrationAsset[] = ILLUSTRATION_SOURCES.map(
-  ({ id, label, raw }) => ({
-    id,
-    label,
-    raw,
-    aspect: aspectFromSvg(raw),
-    palette: extractColors(raw),
-  }),
-);
+/** 파일명(확장자·경로 제거)을 라벨로 변환: 'music-note' → 'Music note'. */
+function labelFromId(id: string): string {
+  const words = id.replace(/[-_]+/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * `assets/`의 모든 SVG를 빌드 시점에 텍스트로 읽어들인다(Vite glob).
+ * 파일을 추가하면 자동으로 일러스트 목록에 잡힌다 — 코드 수정 불필요.
+ * 라벨만 한국어로 보이게 하려면 위 ILLUSTRATION_LABELS에 한 줄 추가한다.
+ */
+const ILLUSTRATION_RAW = import.meta.glob<string>('./assets/*.svg', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+
+/** 일러스트 라이브러리(PRD-M3 카테고리 1). `assets/`에 SVG 파일만 넣으면 자동 등록된다. */
+export const illustrations: IllustrationAsset[] = Object.entries(ILLUSTRATION_RAW)
+  .map(([path, raw]) => {
+    // './assets/music-note.svg' → 'music-note'
+    const id = path.slice(path.lastIndexOf('/') + 1).replace(/\.svg$/i, '');
+    return {
+      id,
+      label: ILLUSTRATION_LABELS[id] ?? labelFromId(id),
+      raw,
+      aspect: aspectFromSvg(raw),
+      palette: extractColors(raw),
+    };
+  })
+  .sort((a, b) => a.id.localeCompare(b.id));
 
 /** 파이핑 변형(PRD-M3 카테고리 3). 별모양 제거, 물방울 추가. */
 export const pipingVariants: PipingVariant[] = [
