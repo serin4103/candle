@@ -52,29 +52,34 @@ export function PipingPanel() {
         })}
       </div>
 
-      <div>
-        <p style={sectionLabel}>굵기 · {pipingBrush.width.toFixed(1)}cm</p>
-        <input
-          type="range"
-          aria-label="파이핑 굵기"
-          min={MIN_PIPING_WIDTH}
-          max={MAX_PIPING_WIDTH}
-          step={0.1}
-          value={pipingBrush.width}
-          onChange={(e) => setPipingBrush({ width: Number(e.target.value) })}
-          style={{ width: '100%', accentColor: palette.primary }}
-        />
-      </div>
+      {/* 굵기·색상은 모양이 선택됐을 때만 노출한다. */}
+      {pendingPiping && (
+        <>
+          <div>
+            <p style={sectionLabel}>굵기 · {pipingBrush.width.toFixed(1)}cm</p>
+            <input
+              type="range"
+              aria-label="파이핑 굵기"
+              min={MIN_PIPING_WIDTH}
+              max={MAX_PIPING_WIDTH}
+              step={0.1}
+              value={pipingBrush.width}
+              onChange={(e) => setPipingBrush({ width: Number(e.target.value) })}
+              style={{ width: '100%', accentColor: palette.primary }}
+            />
+          </div>
 
-      <div>
-        <p style={sectionLabel}>색상</p>
-        <ColorPicker
-          label="파이핑 색"
-          value={pipingBrush.color}
-          swatches={PIPING_SWATCHES}
-          onChange={(color) => setPipingBrush({ color })}
-        />
-      </div>
+          <div>
+            <p style={sectionLabel}>색상</p>
+            <ColorPicker
+              label="파이핑 색"
+              value={pipingBrush.color}
+              swatches={PIPING_SWATCHES}
+              onChange={(color) => setPipingBrush({ color })}
+            />
+          </div>
+        </>
+      )}
     </Panel>
   );
 }
